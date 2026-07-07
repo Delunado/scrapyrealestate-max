@@ -11,9 +11,9 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     TZ=Europe/Madrid
 
-# Dependencias del sistema minimas.
+# Dependencias del sistema minimas. 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends bash curl tzdata \
+    && apt-get install -y --no-install-recommends bash curl tzdata tini \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /scrapyrealestate/scrapyrealestate
@@ -31,4 +31,6 @@ COPY scrapyrealestate/ ./
 
 EXPOSE 8080
 
+# tini como PID 1 hace reaping de zombies, luego arranca la app.
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["python", "main.py"]

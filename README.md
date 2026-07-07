@@ -44,6 +44,11 @@ contenedor se pierden y tendrás que volver a configurarlo por la web (y el
 histórico de avisos empieza de cero). Para una segunda instancia cambia nombre y
 puerto (`-p 8081:8080`).
 
+La imagen arranca bajo `tini` como PID 1, que recolecta los procesos zombie
+(`defunct`) que deja Chromium; sin él se acumulan tras muchos ciclos y agotan los
+PID del sistema. Si usas una imagen antigua (sin `tini`), añade `--init` al
+`docker run` para lograr el mismo efecto.
+
 Logs:
 
 ```bash

@@ -1,7 +1,12 @@
+# Imagen publicada en Docker Hub. Datos efimeros: no se monta volumen
+# (la configuracion y el historico de avisos viven dentro del contenedor).
 services:
   scrapyrealestate:
     image: mcrespov/scrapyrealestate:latest
     container_name: scrapyrealestate
     restart: always
+    # init: true arranca un init (tini) como PID 1 que recolecta los procesos
+    # zombie de Chromium; evita que se acumulen procesos "defunct".
+    init: true
     ports:
       - "8080:8080"
