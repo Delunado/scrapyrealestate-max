@@ -30,6 +30,11 @@ class FotocasaAdapter(BasePortalAdapter):
         ),
     )
 
+    _TRANSACTION_SEGMENTS: ClassVar[dict[TransactionType, str]] = {
+        TransactionType.BUY: "comprar",
+        TransactionType.RENT: "alquiler",
+    }
+
     def _transaction_type(self, raw_url: str) -> TransactionType | None:
         # Mirrors FotocasaSpider.parse, which checks substrings anywhere in
         # the URL rather than a fixed path segment.
@@ -42,3 +47,15 @@ class FotocasaAdapter(BasePortalAdapter):
     def _apply_recent_sort(self, raw_url: str) -> str:
         # main.py does not append a recent-sort suffix for Fotocasa.
         return raw_url
+
+    def _build_search_url(self, transaction_type: TransactionType, location_slug: str) -> str:
+        # e.g. https://www.fotocasa.es/es/comprar/viviendas/madrid/l, matching
+        # the "/es/<segment>/viviendas/<location>/l" shape used by this
+        # codebase's raw search URL fixtures (SEARCH_URL below). Fotocasa's
+        # own taxonomy sometimes prefers a "<city>-capital" location code
+        # instead of the plain municipality slug for a provincial capital;
+        # that distinction is out of scope for this best-effort slug (see
+        # portals.location), so an exact-match search should keep using the
+        # raw-URL override instead.
+        segment = self._TRANSACTION_SEGMENTS[transaction_type]
+        return f"https://www.fotocasa.es/es/{segment}/viviendas/{location_slug}/l"

@@ -79,7 +79,7 @@ than code complexity.
 - [x] **Medium** — Add adapter capability reporting that identifies which requested filters are encoded remotely, evaluated locally, or unavailable.
 - [x] **Hard** — Implement and fixture-test normalized URL/request construction for common location and transaction filters in Pisos.com.
 - [x] **Hard** — Implement and fixture-test normalized URL/request construction for common location and transaction filters in Habitaclia.
-- [ ] **Hard** — Implement and fixture-test normalized URL/request construction for common location and transaction filters in Fotocasa.
+- [x] **Hard** — Implement and fixture-test normalized URL/request construction for common location and transaction filters in Fotocasa.
 - [ ] **Hard** — Implement and fixture-test normalized URL/request construction for common location and transaction filters in Yaencontre.
 - [ ] **Externally unreliable** — Implement only currently verifiable Idealista request translation; keep unsupported or blocked capabilities explicit.
 - [ ] **Easy** — Document the final adapter contract and update `AGENTS.md` with the tested steps for adding a portal.

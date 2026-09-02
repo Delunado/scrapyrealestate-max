@@ -2,6 +2,7 @@ import pytest
 from scrapy.http import HtmlResponse, Request
 
 from scrapyrealestate.domain.legacy_mapper import map_legacy_item
+from scrapyrealestate.domain.search import NormalizedSearch, SearchFilters
 from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.portals.base import PortalRequest, PortalRequestError, PortalTransport
 from scrapyrealestate.portals.fotocasa import FotocasaAdapter
@@ -47,6 +48,38 @@ def test_fotocasa_build_request_rejects_wrong_domain():
 def test_fotocasa_build_request_rejects_unknown_transaction_section():
     with pytest.raises(PortalRequestError, match="transaction type"):
         FotocasaAdapter().build_request("https://www.fotocasa.es/es/traspaso/madrid-capital/l")
+
+
+@pytest.mark.parametrize(
+    ("transaction_type", "expected_url"),
+    [
+        (TransactionType.BUY, "https://www.fotocasa.es/es/comprar/viviendas/madrid/l"),
+        (TransactionType.RENT, "https://www.fotocasa.es/es/alquiler/viviendas/madrid/l"),
+    ],
+)
+def test_fotocasa_builds_request_from_normalized_search(transaction_type, expected_url):
+    search = NormalizedSearch(
+        name="Madrid",
+        transaction_type=transaction_type,
+        filters=SearchFilters(location="Madrid"),
+    )
+
+    request = FotocasaAdapter().build_request_from_search(search)
+
+    assert request == PortalRequest(
+        portal=PortalKey.FOTOCASA,
+        spider_name="fotocasa",
+        start_url=expected_url,
+        transaction_type=transaction_type,
+        raw_url=expected_url,
+    )
+
+
+def test_fotocasa_build_request_from_search_requires_a_location():
+    search = NormalizedSearch(name="No location", transaction_type=TransactionType.BUY)
+
+    with pytest.raises(PortalRequestError, match="location filter is required"):
+        FotocasaAdapter().build_request_from_search(search)
 
 
 SEARCH_URL = "https://www.fotocasa.es/es/comprar/viviendas/madrid-capital/l"
