@@ -122,7 +122,7 @@ code.
 | Portal | Spider | Transport | Current caveats |
 | --- | --- | --- | --- |
 | Pisos.com | `pisoscom` | normal Scrapy HTTP | HTML/CSS selectors; currently considered the simplest maintained target. |
-| Habitaclia | `habitaclia` | normal Scrapy HTTP | HTML/CSS selectors; synthesizes an ID from rooms, price, and area, so price changes can appear as new listings. |
+| Habitaclia | `habitaclia` | normal Scrapy HTTP | HTML/CSS selectors; prefers the stable `-i<id>` detail-URL identifier and uses a numeric canonical-URL fingerprint only when that marker is absent. |
 | Fotocasa | `fotocasa` | Playwright/Chromium | Parses `script#__initial_props__`; wait/JSON structure may change. |
 | Yaencontre | `yaencontre` | Playwright/Chromium | Plain requests have returned 403; relies on rendered card selectors. |
 | Idealista | `idealista` | Playwright/Chromium | DataDome commonly blocks headless automation; treat as externally unreliable. |
@@ -312,8 +312,10 @@ or local editor files.
   on it and do not interpret blocking as an application regression.
 - Listing IDs are not globally unique today. The SQLite identity must include the
   portal, and legacy unscoped IDs need conservative import semantics.
-- Habitaclia's synthetic ID includes price, preventing reliable price-history
-  tracking until a stable URL-derived identity is implemented.
+- Habitaclia normally exposes a stable ID in its detail URL. Unusual URLs without
+  the `-i<id>` marker fall back to a deterministic 63-bit fingerprint of the
+  canonical URL without its query or fragment; this remains a conservative legacy
+  compatibility path rather than a portal-guaranteed identifier.
 - A zero-result crawl may mean no listings, a selector regression, timeout, 403, or
   anti-bot challenge. Execution records must distinguish these cases where evidence
   permits.

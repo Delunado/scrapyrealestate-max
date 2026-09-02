@@ -1,5 +1,6 @@
+import hashlib
 import re
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import scrapy
 from bs4 import BeautifulSoup
@@ -7,6 +8,28 @@ from scrapy.spiders import CrawlSpider
 
 from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.items import ScrapyrealestateItem
+
+
+def habitaclia_listing_id(href: str) -> str:
+    """Return Habitaclia's URL ID or a stable numeric URL fingerprint.
+
+    Detail URLs normally end in ``-i<id>.htm``. The legacy runtime requires a
+    numeric ID, so unusual URLs without that marker use a deterministic 63-bit
+    fingerprint of the canonical URL without query or fragment. Unlike the old
+    synthetic value, neither identity changes when the advertised price changes.
+    """
+    match = re.search(r"-i(\d+)(?:\.htm)?(?:$|[/?#])", href, flags=re.IGNORECASE)
+    if match:
+        return match.group(1)
+
+    parsed = urlsplit(href)
+    stable_url = urlunsplit(
+        (parsed.scheme.casefold(), parsed.netloc.casefold(), parsed.path, "", "")
+    )
+    fingerprint = int.from_bytes(
+        hashlib.sha256(stable_url.encode("utf-8")).digest()[:8], "big"
+    ) & ((1 << 63) - 1)
+    return str(fingerprint or 1)
 
 
 class HabitacliaSpider(CrawlSpider):
@@ -99,7 +122,7 @@ class HabitacliaSpider(CrawlSpider):
 
             link_el = flats[nflat].find("h3", {"class": "list-item-title"})
             link_el = link_el.find("a", href=True) if link_el else None
-            if link_el is None:
+            if link_el is None or not link_el['href'].strip():
                 continue  # tarjeta sin enlace: la saltamos
             href = urljoin(response.url, link_el['href'])
 
@@ -126,10 +149,7 @@ class HabitacliaSpider(CrawlSpider):
             # habitaclia no expone la planta en el listado; queda vacia.
             floor = ''
 
-            # id sintetico (habitaciones + precio + m2): el listado no trae id real.
-            listing_id = ''.join(c for c in rooms if c.isdigit()) + \
-                         ''.join(c for c in price if c.isdigit()) + \
-                         ''.join(c for c in m2 if c.isdigit())
+            listing_id = habitaclia_listing_id(href)
 
             items = ScrapyrealestateItem()
             items['id'] = listing_id
