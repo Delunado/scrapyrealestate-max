@@ -240,7 +240,8 @@ HTML/JSON fixtures small, sanitized, and free of secrets.
 
 Every behavior change needs focused offline tests. Database tests use temporary
 databases and real migrations. Parser tests use sanitized UTF-8 snapshots under
-`tests/fixtures/`; Pisos.com coverage is in `tests/test_pisoscom_spider.py`. Adapter
+`tests/fixtures/`; Pisos.com and Habitaclia coverage is in the corresponding
+`tests/test_<portal>_spider.py` modules. Adapter
 contract tests must verify all registered adapters. Mock notifier HTTP boundaries;
 do not send real messages during normal tests.
 
