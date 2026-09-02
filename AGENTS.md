@@ -158,6 +158,11 @@ infrastructure without a concrete requirement and an explicit update to
   `SearchRepository.update_scheduler_state`; a restart preserves a future deadline,
   while one missed deadline runs once immediately and advances from the recovery
   time rather than replaying every missed interval.
+  `services/search_triggering.py` is the single saved-search entry point for both
+  manual and scheduled triggers: it reloads the current `SearchRecord`, skips a
+  stale scheduled dispatch if the search was disabled, and delegates to
+  `SearchOrchestrationService`, preserving its per-search overlap guard. The
+  scheduler calls this service by search ID rather than invoking a separate path.
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: Flask application factory
   with per-application runtime paths and injected repository/service containers.
   The factory remains available independently of `config.json`; during the

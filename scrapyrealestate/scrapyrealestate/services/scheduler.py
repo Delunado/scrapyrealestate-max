@@ -34,7 +34,7 @@ class SearchSource(Protocol):
 class SearchExecutor(Protocol):
     """Shared orchestration boundary used by scheduled and manual runs."""
 
-    def run_search(self, search_record: SearchRecord, trigger: TriggerKind) -> object: ...
+    def run_search(self, search_id: int, trigger: TriggerKind) -> object: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,7 +186,7 @@ class InProcessScheduler:
                     next_run_at,
                 )
             try:
-                self._executor.run_search(updated_search, TriggerKind.SCHEDULED)
+                self._executor.run_search(updated_search.id, TriggerKind.SCHEDULED)
             except Exception:
                 # One search must not terminate scheduling for every other search.
                 logger.error("scheduled search %s failed", search_id)

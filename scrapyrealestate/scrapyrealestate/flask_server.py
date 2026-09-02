@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from scrapyrealestate.services.search_orchestration import (
         SearchOrchestrationService,
     )
+    from scrapyrealestate.services.search_triggering import SearchTriggerService
 
 
 WEB_CONTEXT_EXTENSION = "scrapyrealestate.web_context"
@@ -50,6 +51,7 @@ class WebServices:
     """Application services made available to request handlers."""
 
     orchestration: SearchOrchestrationService | None = None
+    search_trigger: SearchTriggerService | None = None
     readiness_check: Callable[[], bool] | None = None
 
 

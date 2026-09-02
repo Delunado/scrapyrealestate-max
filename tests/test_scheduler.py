@@ -81,8 +81,8 @@ class RecordingExecutor:
     def __init__(self):
         self.calls = []
 
-    def run_search(self, search_record, trigger):
-        self.calls.append((search_record, trigger))
+    def run_search(self, search_id, trigger):
+        self.calls.append((search_id, trigger))
 
 
 def test_refresh_loads_enabled_searches_and_computes_utc_deadlines():
@@ -107,7 +107,7 @@ def test_due_search_uses_scheduled_orchestration_trigger_and_is_rescheduled():
     current[0] += timedelta(seconds=600)
 
     assert scheduler.run_due() == (1,)
-    assert executor.calls[0][0].id == 1
+    assert executor.calls[0][0] == 1
     assert executor.calls[0][1] is TriggerKind.SCHEDULED
     assert scheduler.next_run_times[1] == current[0] + timedelta(seconds=600)
 

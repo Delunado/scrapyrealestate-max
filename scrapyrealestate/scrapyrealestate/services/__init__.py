@@ -8,10 +8,12 @@ from scrapyrealestate.services.search_orchestration import (
     SearchRunOutcome,
 )
 from scrapyrealestate.services.scheduler import InProcessScheduler
+from scrapyrealestate.services.search_triggering import SearchTriggerService
 
 __all__ = [
     "PortalAttemptOutcome",
     "SearchOrchestrationService",
     "SearchRunOutcome",
+    "SearchTriggerService",
     "InProcessScheduler",
 ]

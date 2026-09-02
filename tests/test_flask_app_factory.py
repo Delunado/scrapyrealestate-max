@@ -16,12 +16,16 @@ def test_factory_injects_dependencies_into_one_application(tmp_path: Path):
     runs = object()
     notifications = object()
     orchestration = object()
+    search_trigger = object()
     repositories = WebRepositories(
         searches=searches,
         runs=runs,
         notifications=notifications,
     )
-    services = WebServices(orchestration=orchestration)
+    services = WebServices(
+        orchestration=orchestration,
+        search_trigger=search_trigger,
+    )
 
     app = create_app(
         runtime_paths=paths,
@@ -40,6 +44,7 @@ def test_factory_injects_dependencies_into_one_application(tmp_path: Path):
         assert context.repositories.notifications is notifications
         assert context.services is services
         assert context.services.orchestration is orchestration
+        assert context.services.search_trigger is search_trigger
 
 
 def test_factory_instances_do_not_share_runtime_state(tmp_path: Path):
