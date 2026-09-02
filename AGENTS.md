@@ -207,6 +207,16 @@ capability tests, status reporting, and an update to the portal table in this fi
 Assess a portal before integrating it; strong anti-bot bypasses and paid solving
 services are out of scope by default.
 
+`portals/pisoscom.py`, `habitaclia.py`, `fotocasa.py`, `yaencontre.py`, and
+`idealista.py` implement one adapter per row of the portal table above, each with
+its own fixture-backed contract tests
+(`tests/test_<portal>_adapter.py`). `idealista.py` defines both `IdealistaAdapter`
+(Playwright) and `IdealistaProxyAdapter` (rotating public proxies); both default
+`degraded=True` and promise no anti-bot bypass. They intentionally share the
+`idealista.com` domain, so `PortalRegistry.get_by_hostname` cannot resolve between
+them; portal selection stays a config-driven choice (the current `proxy_idealista`
+flag), never hostname routing, exactly as `main.py` already does today.
+
 ## Application boundaries to preserve
 
 New code should maintain these practical boundaries without creating needless
