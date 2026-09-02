@@ -35,6 +35,19 @@ class IdealistaSpider(scrapy.Spider):
         soup = BeautifulSoup(response.text, 'lxml')
         # Cada vivienda es un div.item-info-container.
         flats = soup.find_all("div", {"class": "item-info-container"})
+        if not flats:
+            challenge_html = str(soup).lower()
+            challenge_markers = (
+                'datadome',
+                'captcha-delivery.com',
+                'captcha',
+                'access denied',
+            )
+            if any(marker in challenge_html for marker in challenge_markers):
+                logging.warning(
+                    'IDEALISTA: respuesta de desafío detectada '
+                    '(posible bloqueo anti-bot)'
+                )
         # Obtenemos si es alquiler o compra a partir de la url
         if self.start_urls.split('/')[3].split('-')[0] == 'alquiler':
             type = 'rent'
