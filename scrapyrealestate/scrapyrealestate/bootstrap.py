@@ -29,9 +29,14 @@ from scrapyrealestate.persistence.migrations import MIGRATIONS, MigrationRunner
 from scrapyrealestate.persistence.notifications import NotificationRepository
 from scrapyrealestate.persistence.runs import RunRepository
 from scrapyrealestate.persistence.searches import SearchRepository
+from scrapyrealestate.notifiers.registry import (
+    NotifierRegistry,
+    build_default_notifier_registry,
+)
 from scrapyrealestate.portals import build_default_registry
 from scrapyrealestate.runtime import RuntimePaths, get_runtime_paths
 from scrapyrealestate.services.ingestion import IngestionService
+from scrapyrealestate.services.notification_delivery import DurableNotificationDispatcher
 from scrapyrealestate.services.scheduler import InProcessScheduler
 from scrapyrealestate.services.search_orchestration import SearchOrchestrationService
 from scrapyrealestate.services.search_triggering import SearchTriggerService
@@ -121,6 +126,7 @@ def build_application(
     *,
     runtime_paths: RuntimePaths | None = None,
     spider_runner: SpiderRunner | None = None,
+    notifier_registry: NotifierRegistry | None = None,
 ) -> ApplicationRuntime:
     """Migrate/import once and compose the persistent web/scheduler runtime."""
     paths = runtime_paths or get_runtime_paths()
@@ -147,6 +153,10 @@ def build_application(
             runs=runs,
             ingestion=IngestionService(connection),
             runtime_paths=paths,
+            notification_delivery=DurableNotificationDispatcher(
+                notifications,
+                notifier_registry or build_default_notifier_registry(),
+            ),
         )
         trigger = SearchTriggerService(searches, orchestration)
         scheduler = InProcessScheduler(searches, trigger)

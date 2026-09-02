@@ -15,10 +15,11 @@ infrastructure without a concrete requirement and an explicit update to
 
 ## Repository layout
 
-- `scrapyrealestate/main.py`: current process entrypoint. It loads first-run JSON
-  configuration, validates Telegram, runs spiders as subprocesses, merges their
-  JSON output, performs price filtering and ID deduplication, sends Telegram
-  messages, and sleeps forever.
+- `scrapyrealestate/main.py`: compatibility process entrypoint now delegating to
+  `scrapyrealestate.bootstrap.main`, so the published `python main.py` command runs
+  the persistent SQLite/web/scheduler application. Retired first-run, shared-output,
+  direct-Telegram, and sleep-loop helpers remain in this file only until the next
+  explicit Phase 7 cleanup task.
 - `scrapyrealestate/scrapyrealestate/bootstrap.py`: new persistent composition
   entrypoint built beside the legacy runtime. It resolves the data directory,
   applies migrations, idempotently imports any preserved legacy JSON sources once,
@@ -204,9 +205,9 @@ Offline tests use pytest with shared fixtures in `tests/`, and Ruff
 enforces the focused Python 3.12 lint baseline configured in `pyproject.toml`.
 GitHub Actions runs tests, lint, and Compose validation without live portal access.
 
-## Current runtime flow
+## Retired legacy runtime flow pending cleanup
 
-Run `python main.py` from the inner `scrapyrealestate/` directory. The process:
+The unused helpers still present in `main.py` previously performed this flow:
 
 1. creates `./data/` if `data/config.json` is absent;
 2. launches `scrapyrealestate/flask_server.py` as a child process and waits for the

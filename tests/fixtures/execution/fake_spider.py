@@ -21,6 +21,16 @@ def main(argv: list[str]) -> int:
         Path(argv[1]).write_text("", encoding="utf-8")
         return 0
 
+    if mode == "listing":
+        Path(argv[1]).write_text(
+            '{"id":"101","title":"Piso en Madrid","price":"1.200 €",'
+            '"m2":"60 m²","rooms":"2 habs.","town":"Madrid",'
+            '"type":"rent","href":"https://www.pisos.com/comprar/home-101/",'
+            '"site":"pisoscom"}\n',
+            encoding="utf-8",
+        )
+        return 0
+
     if mode == "fail":
         sys.stderr.write("crawl failed\n" * 1000)
         return 1

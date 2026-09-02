@@ -409,6 +409,7 @@ def update_useragent():
 
 
 def init():
+    """Retained legacy loop; removed in the next Phase 7 cleanup task."""
     tprint("scrapyrealestate")
     print(f'scrapyrealestate v{__version__}')
 
@@ -446,5 +447,12 @@ def init():
         time.sleep(rndtime)
 
 
+def main():
+    """Run the persistent SQLite/web/scheduler application."""
+    from scrapyrealestate.bootstrap import main as bootstrap_main
+
+    bootstrap_main()
+
+
 if __name__ == "__main__":
-    init()
+    main()
