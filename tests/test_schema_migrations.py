@@ -19,8 +19,8 @@ def test_search_schema_is_created_at_version_one(migrated_connection):
     connection = migrated_connection
     assert connection.execute("PRAGMA user_version").fetchone()[0] == 0
     assert connection.execute(
-        "SELECT version, name FROM schema_migrations"
-    ).fetchall()[0]["version"] == 1
+        "SELECT max(version) FROM schema_migrations"
+    ).fetchone()[0] == len(MIGRATIONS)
 
     search_id = connection.execute(
         """
@@ -67,4 +67,51 @@ def test_schedule_requires_a_search_and_minimum_interval(migrated_connection):
         migrated_connection.execute(
             "INSERT INTO search_schedules (search_id, interval_seconds) VALUES (?, 299)",
             (search_id,),
+        )
+
+
+def test_search_portal_schema_stores_validated_selection(migrated_connection):
+    search_id = migrated_connection.execute(
+        "INSERT INTO searches (name, transaction_type) VALUES ('A', 'buy') RETURNING id"
+    ).fetchone()[0]
+    migrated_connection.execute(
+        """
+        INSERT INTO search_portals (
+            search_id, portal_key, raw_url_override, adapter_options_json, enabled
+        ) VALUES (?, 'pisoscom', 'https://www.pisos.com/venta/pisos-madrid/',
+                  '{"recent_sort": true}', 0)
+        """,
+        (search_id,),
+    )
+
+    selection = migrated_connection.execute("SELECT * FROM search_portals").fetchone()
+    assert selection["portal_key"] == "pisoscom"
+    assert selection["enabled"] == 0
+    assert selection["created_at"].endswith("Z")
+
+
+@pytest.mark.parametrize(
+    ("portal_key", "raw_url", "options"),
+    [
+        ("Pisos", None, "{}"),
+        ("pisos.com", None, "{}"),
+        ("pisoscom", "ftp://example.com/results", "{}"),
+        ("pisoscom", None, "[]"),
+    ],
+)
+def test_search_portal_constraints_reject_invalid_values(
+    migrated_connection, portal_key, raw_url, options
+):
+    search_id = migrated_connection.execute(
+        "INSERT INTO searches (name, transaction_type) VALUES ('A', 'buy') RETURNING id"
+    ).fetchone()[0]
+
+    with pytest.raises(sqlite3.IntegrityError):
+        migrated_connection.execute(
+            """
+            INSERT INTO search_portals (
+                search_id, portal_key, raw_url_override, adapter_options_json
+            ) VALUES (?, ?, ?, ?)
+            """,
+            (search_id, portal_key, raw_url, options),
         )
