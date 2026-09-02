@@ -9,6 +9,7 @@ from enum import StrEnum
 from typing import Any
 
 from scrapyrealestate.domain.listing import NormalizedListing
+from scrapyrealestate.domain.values import PortalKey, RunStatus
 from scrapyrealestate.persistence.database import transaction
 
 
@@ -24,6 +25,13 @@ class ListingMatchResult:
     listing_id: int
     outcome: ListingMatchOutcome
     listing_created: bool
+
+
+@dataclass(frozen=True, slots=True)
+class DisappearanceResult:
+    reconciled: bool
+    inactive_match_ids: tuple[int, ...] = ()
+    inactive_listing_ids: tuple[int, ...] = ()
 
 
 class ListingIdentityConflictError(RuntimeError):
@@ -91,6 +99,63 @@ class ListingMatchRepository:
         return self.connection.execute(
             "SELECT * FROM listings WHERE id = ?", (listing_id,)
         ).fetchone()
+
+    def reconcile_portal(
+        self,
+        search_id: int,
+        portal: PortalKey,
+        seen_listing_ids: set[int] | frozenset[int],
+        status: RunStatus,
+    ) -> DisappearanceResult:
+        """Deactivate unseen matches only after a conclusive portal result."""
+        if status not in {RunStatus.SUCCESS, RunStatus.EMPTY}:
+            return DisappearanceResult(reconciled=False)
+        seen = frozenset(seen_listing_ids)
+        active_rows = self.connection.execute(
+            """
+            SELECT m.listing_id
+            FROM search_listing_matches AS m
+            JOIN listings AS l ON l.id = m.listing_id
+            WHERE m.search_id = ? AND l.portal_key = ? AND m.active = 1
+            """,
+            (search_id, portal.value),
+        ).fetchall()
+        missing = tuple(
+            row["listing_id"]
+            for row in active_rows
+            if row["listing_id"] not in seen
+        )
+        if not missing:
+            return DisappearanceResult(reconciled=True)
+
+        globally_inactive: list[int] = []
+        with transaction(self.connection, immediate=True):
+            self.connection.executemany(
+                """
+                UPDATE search_listing_matches SET active = 0
+                WHERE search_id = ? AND listing_id = ?
+                """,
+                ((search_id, listing_id) for listing_id in missing),
+            )
+            for listing_id in missing:
+                still_active = self.connection.execute(
+                    """
+                    SELECT 1 FROM search_listing_matches
+                    WHERE listing_id = ? AND active = 1 LIMIT 1
+                    """,
+                    (listing_id,),
+                ).fetchone()
+                if still_active is None:
+                    self.connection.execute(
+                        "UPDATE listings SET active = 0 WHERE id = ?",
+                        (listing_id,),
+                    )
+                    globally_inactive.append(listing_id)
+        return DisappearanceResult(
+            reconciled=True,
+            inactive_match_ids=missing,
+            inactive_listing_ids=tuple(globally_inactive),
+        )
 
     def _find_listing(self, listing: NormalizedListing) -> sqlite3.Row | None:
         by_external_id = None

@@ -59,7 +59,7 @@ than code complexity.
 - [x] **Medium** — Implement and test search CRUD repositories, including enable/disable and per-search schedule/portal updates.
 - [x] **Medium** — Implement transactional listing upsert and search-match repositories that return new, changed, reappeared, and unchanged outcomes.
 - [x] **Medium** — Implement price-history recording and price-drop/price-increase detection with idempotency tests.
-- [ ] **Medium** — Implement disappearance/inactive detection scoped to successful search/portal runs so failed or blocked crawls never mark listings absent.
+- [x] **Medium** — Implement disappearance/inactive detection scoped to successful search/portal runs so failed or blocked crawls never mark listings absent.
 - [ ] **Medium** — Implement run/portal-attempt persistence and queries for latest status, duration, result counts, errors, and next scheduled execution.
 - [ ] **Medium** — Implement notification channel/event/delivery repositories with masked secret reads and retry-safe uniqueness.
 - [ ] **Hard** — Build an idempotent legacy importer for `config.json` that creates a named search, portal selections, schedule, filters, and Telegram channel while preserving the source file.
