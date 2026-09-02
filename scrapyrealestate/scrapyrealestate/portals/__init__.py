@@ -10,12 +10,15 @@ from scrapyrealestate.portals.base import (
     PortalTransport,
     normalize_hostname,
 )
+from scrapyrealestate.portals.registry import PortalRegistrationError, PortalRegistry
 
 __all__ = [
     "ALL_LOCAL_CAPABILITIES",
     "BasePortalAdapter",
     "PortalAdapter",
     "PortalMetadata",
+    "PortalRegistrationError",
+    "PortalRegistry",
     "PortalRequest",
     "PortalRequestError",
     "PortalTransport",

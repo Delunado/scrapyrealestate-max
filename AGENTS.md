@@ -189,8 +189,12 @@ delegates result normalization to `map_legacy_item`. Until per-portal remote URL
 filter encoding exists (a later `TASKS.md` item), every adapter declares
 `ALL_LOCAL_CAPABILITIES` rather than guessing ahead of an actual request builder.
 
-Use a registry for lookup by stable key or hostname. Adding a portal must not add a
-new central `if/elif`. Explicitly report unsupported filters and distinguish:
+`portals/registry.py` provides `PortalRegistry` for lookup by stable key
+(`get`) or normalized hostname (`get_by_hostname`, case-insensitive and
+`www.`-agnostic); registration rejects a duplicate portal key or a domain
+already claimed by another adapter. `main.py` does not build or consult a
+registry yet. Adding a portal must not add a new central `if/elif`. Explicitly
+report unsupported filters and distinguish:
 
 - remote filters encoded in a portal URL/request;
 - local filters applied to normalized results;
