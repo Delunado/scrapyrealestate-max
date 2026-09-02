@@ -40,7 +40,7 @@ than code complexity.
 - [x] **Easy** — Define filter-capability metadata that distinguishes remote, local, and unsupported filters and add serialization/contract tests.
 - [x] **Medium** — Update the Pisos.com spider to emit values compatible with the normalized boundary while retaining the legacy mapper during transition.
 - [x] **Medium** — Update the Habitaclia spider to emit values compatible with the normalized boundary while retaining the legacy mapper during transition.
-- [ ] **Medium** — Update the Fotocasa spider to emit values compatible with the normalized boundary while retaining the legacy mapper during transition.
+- [x] **Medium** — Update the Fotocasa spider to emit values compatible with the normalized boundary while retaining the legacy mapper during transition.
 - [ ] **Medium** — Update the Yaencontre spider to emit values compatible with the normalized boundary while retaining the legacy mapper during transition.
 - [ ] **Externally unreliable** — Update the Idealista spiders to emit values compatible with the normalized boundary using fixture-based coverage when live access is blocked.
 - [ ] **Medium** — Fix Habitaclia identity to prefer a stable listing URL identifier and preserve a documented fallback that does not include mutable price.

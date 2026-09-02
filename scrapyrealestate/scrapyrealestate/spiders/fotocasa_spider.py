@@ -1,10 +1,13 @@
 import json
 import logging
+from urllib.parse import urljoin
 
 import scrapy
 from bs4 import BeautifulSoup
-from scrapyrealestate.items import ScrapyrealestateItem
 from scrapy_playwright.page import PageMethod
+
+from scrapyrealestate.domain.values import PortalKey, TransactionType
+from scrapyrealestate.items import ScrapyrealestateItem
 
 
 class FotocasaSpider(scrapy.Spider):
@@ -36,11 +39,11 @@ class FotocasaSpider(scrapy.Spider):
 
         # alquiler/venta según la url
         if 'alquiler' in self.start_urls:
-            tipo = 'rent'
+            transaction_type = TransactionType.RENT
         elif 'comprar' in self.start_urls or 'venta' in self.start_urls:
-            tipo = 'buy'
+            transaction_type = TransactionType.BUY
         else:
-            tipo = ''
+            return
 
         # Fotocasa migró a clases CSS utilitarias; parseamos el JSON embebido
         # (initialSearch.result.realEstates), que es mucho más estable.
@@ -60,6 +63,8 @@ class FotocasaSpider(scrapy.Spider):
         logging.debug(f'FOTOCASA: {len(real_estates)} inmuebles en el JSON')
 
         for flat in real_estates:
+            if not isinstance(flat, dict):
+                continue
             items = ScrapyrealestateItem()
 
             # features es una lista de {key, value} (rooms, surface, floor...)
@@ -69,11 +74,17 @@ class FotocasaSpider(scrapy.Spider):
                     feats[f['key']] = f.get('value')
 
             address = flat.get('address') or {}
+            if not isinstance(address, dict):
+                address = {}
             detail = flat.get('detail') or {}
             href = detail.get('es-ES', '') if isinstance(detail, dict) else ''
+            title = flat.get('description', '') or flat.get('promotionTitle', '')
+            listing_id = flat.get('id', '')
+            if not isinstance(title, str) or not title.strip() or not (listing_id or href):
+                continue
 
-            items['id'] = flat.get('id', '')
-            items['title'] = flat.get('description', '') or flat.get('promotionTitle', '')
+            items['id'] = listing_id
+            items['title'] = title.strip()
             items['price'] = flat.get('price', '')
             items['rooms'] = feats.get('rooms', '')
             items['m2'] = feats.get('surface', '')
@@ -82,8 +93,8 @@ class FotocasaSpider(scrapy.Spider):
             items['neighbour'] = address.get('neighborhood', '')
             items['street'] = ''
             items['number'] = ''
-            items['type'] = tipo
-            items['href'] = (default_url + href) if href else ''
-            items['site'] = 'fotocasa'
+            items['type'] = transaction_type.value
+            items['href'] = urljoin(default_url, href) if href else ''
+            items['site'] = PortalKey.FOTOCASA.value
 
             yield items

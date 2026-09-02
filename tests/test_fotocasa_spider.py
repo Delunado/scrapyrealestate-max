@@ -3,6 +3,8 @@ import logging
 import pytest
 from scrapy.http import HtmlResponse, Request
 
+from scrapyrealestate.domain.legacy_mapper import map_legacy_item
+from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.spiders.fotocasa_spider import FotocasaSpider
 
 
@@ -81,3 +83,20 @@ def test_parse_fotocasa_missing_or_malformed_payload(html, warning, caplog):
 
     assert listings == []
     assert warning in caplog.text
+
+
+def test_every_fotocasa_result_satisfies_normalized_boundary(load_fixture):
+    normalized = [
+        map_legacy_item(item)
+        for item in parse_html(load_fixture("fotocasa/search_results.html"))
+    ]
+
+    assert all(listing.portal is PortalKey.FOTOCASA for listing in normalized)
+    assert all(listing.transaction_type is TransactionType.BUY for listing in normalized)
+    assert normalized[0].external_id == "87654321"
+    assert normalized[0].price_euros == 289_000
+    assert normalized[0].area_sqm == 91
+    assert normalized[0].rooms == 3
+    assert normalized[0].floor == 2
+    assert normalized[1].external_id == "promo-13579"
+    assert normalized[1].canonical_url is None
