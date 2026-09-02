@@ -125,6 +125,9 @@ infrastructure without a concrete requirement and an explicit update to
   `NotificationRepository.select_enabled_events`. `notifiers/telegram.py` sends
   that shared plain text through a user-configured bot and chat only; it returns a
   classified `DeliveryResult` and never exposes provider exception text.
+  `notifiers/ntfy.py` publishes the same content as JSON to a configurable public
+  or self-hosted server/topic, with optional bearer authentication and a mandatory
+  bounded timeout; response bodies and exception text never enter diagnostics.
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: current first-run-only Flask
   server. It writes `data/config.json`; `main.py` then terminates it.
 - `scrapyrealestate/scrapyrealestate/templates/`: current unstyled first-run form
