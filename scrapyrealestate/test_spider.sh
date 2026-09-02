@@ -3,7 +3,8 @@
 # test_spider.sh - Prueba end-to-end de un spider concreto.
 #
 # Lanza un crawl real (scrapy-playwright + Chromium), guarda el resultado en
-# ./data/test_<spider>.json y muestra un resumen: numero de viviendas y muestra.
+# ./data/test_<spider>.json y clasifica claramente el resultado. Es una herramienta
+# manual y opt-in: nunca se ejecuta como parte de los tests offline.
 #
 # Ejecutar desde la carpeta que contiene scrapy.cfg (esta misma).
 # En Docker: docker exec -it <contenedor> bash -c "cd /scrapyrealestate/scrapyrealestate && ./test_spider.sh <spider> [url]"
@@ -26,6 +27,7 @@ esac
 
 URL="${2:-$DEFAULT_URL}"
 OUT="./data/test_${SPIDER}.json"
+LOG="./data/test_${SPIDER}.log"
 
 if [ ! -f "scrapy.cfg" ]; then
   echo "ERROR: ejecuta este script desde la carpeta que contiene scrapy.cfg."
@@ -38,43 +40,26 @@ if [ ! -s "./data/useragent.txt" ]; then
   echo "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" > ./data/useragent.txt
 fi
 
-rm -f "$OUT"
+rm -f "$OUT" "$LOG"
 
 echo "=================================================================="
 echo " Spider : $SPIDER"
 echo " URL    : $URL"
 echo " Salida : $OUT"
+echo " Log    : $LOG"
 echo "=================================================================="
 echo ">> Lanzando crawl (logs en nivel INFO)..."
 echo
 
-scrapy crawl -L INFO "$SPIDER" -o "$OUT" -a start_urls="$URL"
-STATUS=$?
+scrapy crawl -L INFO "$SPIDER" -o "$OUT" -a start_urls="$URL" 2>&1 | tee "$LOG"
+STATUS=${PIPESTATUS[0]}
 
 echo
 echo "=================================================================="
-if [ $STATUS -ne 0 ]; then
-  echo "El comando scrapy termino con codigo $STATUS."
-fi
-
-if [ ! -f "$OUT" ]; then
-  echo "RESULTADO: no se genero $OUT -> 0 viviendas (probable bloqueo o selector roto)."
-  exit 1
-fi
-
-python3 - "$OUT" <<'PYEOF'
-import json, sys
-path = sys.argv[1]
-try:
-    data = json.load(open(path, encoding="utf-8"))
-except Exception as e:
-    print(f"RESULTADO: el JSON no se pudo leer ({e}). Revisa el log de arriba.")
-    sys.exit(1)
-print(f"RESULTADO: {len(data)} viviendas extraidas.")
-for flat in data[:2]:
-    print("-" * 50)
-    for k in ("id", "price", "m2", "rooms", "town", "neighbour", "href", "site"):
-        if k in flat:
-            print(f"  {k:9}: {flat[k]}")
-PYEOF
+python3 -m scrapyrealestate.live_spider_result \
+  --output "$OUT" \
+  --log "$LOG" \
+  --crawl-exit-code "$STATUS"
+RESULT_STATUS=$?
 echo "=================================================================="
+exit "$RESULT_STATUS"

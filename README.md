@@ -145,8 +145,10 @@ Rastrea con cabeza y respeta el refresco mínimo (300s).
 
 ## Probar un spider
 
-`test_spider.sh` lanza un crawl de un portal y muestra cuántas viviendas saca y un
-par de ejemplos. Se ejecuta donde está `scrapy.cfg`. En Docker:
+`test_spider.sh` lanza un crawl de un portal y separa un resultado no vacío, un
+resultado vacío válido, un fallo del parser, un fallo de transporte y un probable
+bloqueo. Conserva el JSON y el log bajo `./data/`; es una herramienta manual que no
+forma parte de los tests offline. Se ejecuta donde está `scrapy.cfg`. En Docker:
 
 ```bash
 docker exec -it scrapyrealestate bash -c \

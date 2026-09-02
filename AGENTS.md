@@ -32,8 +32,10 @@ infrastructure without a concrete requirement and an explicit update to
   and confirmation page.
 - `scrapyrealestate/scrapyrealestate/proxies.py`: downloads public HTTPS proxies
   for `idealista_proxy`; this source is inherently unreliable.
-- `scrapyrealestate/test_spider.sh`: manual live crawl helper. Live portal behavior
-  is not a deterministic regression test.
+- `scrapyrealestate/test_spider.sh`: opt-in live crawl helper. It retains a crawl
+  log and classifies non-empty success, valid empty output, parser failure,
+  transport failure, and likely blocking. Live portal behavior is not a
+  deterministic regression test.
 - `Dockerfile`: Python 3.12 image with Chromium and `tini`; its working directory is
   `/scrapyrealestate/scrapyrealestate`.
 - `docker-compose.yml`: current published-image deployment. It exposes port 8080
@@ -77,7 +79,8 @@ The ignored `scrapyrealestate/data/` directory may contain:
 - `ids.json`: a flat global list of notified integer IDs, without portal names;
 - `useragent.txt`: generated browser User-Agent;
 - `<scrapy_rs_name>.json`: temporary aggregate crawl output;
-- `test_<spider>.json`: manual live-test output.
+- `test_<spider>.json` and `test_<spider>.log`: manual live-test output and the
+  retained log used to classify the crawl result.
 
 Current `config.json` keys are `scrapy_rs_name`, `log_level`,
 `log_level_scrapy`, `time_update`, `telegram_chatuserID`,
