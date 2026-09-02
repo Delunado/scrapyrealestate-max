@@ -20,6 +20,7 @@ APPLICATION_MODULES = (
     "scrapyrealestate.security",
     "scrapyrealestate.services.notification_routing",
     "scrapyrealestate.services.notification_delivery",
+    "scrapyrealestate.wsgi",
     "scrapyrealestate.spiders.fotocasa_spider",
     "scrapyrealestate.spiders.habitaclia_spider",
     "scrapyrealestate.spiders.idealista_spider",

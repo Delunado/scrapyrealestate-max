@@ -31,6 +31,7 @@ requests==2.32.3
 pyTelegramBotAPI==4.18.0
 flask==3.0.3
 werkzeug==3.0.3
+waitress==3.0.2
 fake-useragent==1.5.1
 
 # --- Utilidades ---

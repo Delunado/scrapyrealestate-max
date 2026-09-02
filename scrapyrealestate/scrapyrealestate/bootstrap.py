@@ -15,7 +15,6 @@ from types import FrameType
 from typing import Protocol
 
 from flask import Flask
-from werkzeug.serving import BaseWSGIServer, make_server
 
 from scrapyrealestate.execution.runner import SpiderRunner
 from scrapyrealestate.flask_server import (
@@ -36,6 +35,7 @@ from scrapyrealestate.services.ingestion import IngestionService
 from scrapyrealestate.services.scheduler import InProcessScheduler
 from scrapyrealestate.services.search_orchestration import SearchOrchestrationService
 from scrapyrealestate.services.search_triggering import SearchTriggerService
+from scrapyrealestate.wsgi import WaitressApplicationServer
 
 
 logger = logging.getLogger(__name__)
@@ -48,43 +48,6 @@ class ApplicationServer(Protocol):
     def serve(self, app: Flask) -> None: ...
 
     def request_shutdown(self) -> None: ...
-
-
-class WerkzeugApplicationServer:
-    """Interim stoppable server, replaced by production WSGI in the next task."""
-
-    def __init__(self, host: str = "0.0.0.0", port: int = 8080) -> None:
-        self._host = host
-        self._port = port
-        self._lock = threading.Lock()
-        self._shutdown_requested = False
-        self._server: BaseWSGIServer | None = None
-
-    def serve(self, app: Flask) -> None:
-        with self._lock:
-            if self._shutdown_requested:
-                return
-            server = make_server(self._host, self._port, app, threaded=False)
-            self._server = server
-        try:
-            server.serve_forever()
-        finally:
-            server.server_close()
-            with self._lock:
-                self._server = None
-
-    def request_shutdown(self) -> None:
-        with self._lock:
-            self._shutdown_requested = True
-            server = self._server
-        if server is not None:
-            # socketserver.shutdown() must be called from outside serve_forever's
-            # thread, including when this request originated in a signal handler.
-            threading.Thread(
-                target=server.shutdown,
-                name="scrapyrealestate-web-shutdown",
-                daemon=True,
-            ).start()
 
 
 @dataclass(frozen=True, slots=True)
@@ -215,7 +178,7 @@ def build_application(
 def main() -> None:
     """Run the transitional Flask server without waiting for ``config.json``."""
     runtime = build_application()
-    runtime.run(WerkzeugApplicationServer())
+    runtime.run(WaitressApplicationServer())
 
 
 def _import_legacy_sources(

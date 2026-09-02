@@ -28,8 +28,10 @@ infrastructure without a concrete requirement and an explicit update to
   `ApplicationRuntime` temporarily owns SIGTERM/SIGINT handlers while serving: a
   signal stops new scheduler dispatches and spider launches, requests web shutdown,
   allows a bounded crawl grace period, kills remaining child process groups, then
-  closes the scheduler-owned SQLite connection. The current stoppable Werkzeug
-  server is transitional until the production-WSGI task.
+  closes the scheduler-owned SQLite connection. Web requests run under the
+  programmatically managed Waitress WSGI server (`wsgi.py`), with tracebacks
+  disabled and bounded worker shutdown; Flask's development server is not used by
+  the persistent bootstrap.
 - `scrapyrealestate/scrapy.cfg`: Scrapy project marker. Scrapy commands must run
   from this directory unless `SCRAPY_SETTINGS_MODULE` is set explicitly.
 - `scrapyrealestate/scrapyrealestate/settings.py`: shared Scrapy and Playwright
