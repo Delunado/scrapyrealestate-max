@@ -7,6 +7,7 @@ file, its own subprocess timeout, and always resolves to a
 builds on top of this package to run every enabled portal for one search.
 """
 
+from scrapyrealestate.execution.attempt import run_portal_attempt
 from scrapyrealestate.execution.contract import (
     CONCLUSIVE_STATUSES,
     DEFAULT_LOG_LEVEL,
@@ -27,4 +28,5 @@ __all__ = [
     "SpiderRunner",
     "default_scrapy_command",
     "read_jsonl_items",
+    "run_portal_attempt",
 ]

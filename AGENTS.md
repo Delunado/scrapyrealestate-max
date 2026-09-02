@@ -64,6 +64,14 @@ infrastructure without a concrete requirement and an explicit update to
   `PortalRunResult`. Its subprocess command is pluggable
   (`build_command`) precisely so tests never need Scrapy installed; see
   `tests/fixtures/execution/fake_spider.py`.
+  `execution/attempt.py`'s `run_portal_attempt` wraps adapter request
+  building (`build_request`/`build_request_from_search`) around
+  `SpiderRunner.run`: a `PortalRequestError` or any other unexpected
+  exception while resolving the request becomes an `UNAVAILABLE` result,
+  and an unexpected exception from the runner itself becomes
+  `TRANSPORT_ERROR` — the function itself never raises. This is the
+  per-portal guarantee `services.search_orchestration`'s multi-portal loop
+  depends on.
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: current first-run-only Flask
   server. It writes `data/config.json`; `main.py` then terminates it.
 - `scrapyrealestate/scrapyrealestate/templates/`: current unstyled first-run form
