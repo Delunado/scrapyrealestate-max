@@ -47,51 +47,62 @@ class ListingMatchRepository:
     def ingest(
         self, search_id: int, listing: NormalizedListing
     ) -> ListingMatchResult:
-        observed_at = _timestamp(listing.observed_at)
         with transaction(self.connection, immediate=True):
-            row = self._find_listing(listing)
-            listing_created = row is None
-            changed = False
-            if row is None:
-                listing_id = self._insert_listing(listing, observed_at)
-            else:
-                listing_id = row["id"]
-                changed = self._is_changed(row, listing)
-                self._update_listing(listing_id, listing, observed_at)
+            return self.ingest_locked(search_id, listing)
 
-            match = self.connection.execute(
+    def ingest_locked(
+        self, search_id: int, listing: NormalizedListing
+    ) -> ListingMatchResult:
+        """Same as :meth:`ingest`, for a caller that already holds a
+        transaction (see ``services.ingestion.IngestionService``, which
+        combines this with price history and event creation as one unit
+        of work). ``transaction()`` does not support nesting, so this must
+        not open one of its own.
+        """
+        observed_at = _timestamp(listing.observed_at)
+        row = self._find_listing(listing)
+        listing_created = row is None
+        changed = False
+        if row is None:
+            listing_id = self._insert_listing(listing, observed_at)
+        else:
+            listing_id = row["id"]
+            changed = self._is_changed(row, listing)
+            self._update_listing(listing_id, listing, observed_at)
+
+        match = self.connection.execute(
+            """
+            SELECT active FROM search_listing_matches
+            WHERE search_id = ? AND listing_id = ?
+            """,
+            (search_id, listing_id),
+        ).fetchone()
+        if match is None:
+            self.connection.execute(
                 """
-                SELECT active FROM search_listing_matches
+                INSERT INTO search_listing_matches (
+                    search_id, listing_id, first_seen_at, last_seen_at
+                ) VALUES (?, ?, ?, ?)
+                """,
+                (search_id, listing_id, observed_at, observed_at),
+            )
+            outcome = ListingMatchOutcome.NEW
+        else:
+            was_active = bool(match["active"])
+            self.connection.execute(
+                """
+                UPDATE search_listing_matches
+                SET last_seen_at = ?, active = 1
                 WHERE search_id = ? AND listing_id = ?
                 """,
-                (search_id, listing_id),
-            ).fetchone()
-            if match is None:
-                self.connection.execute(
-                    """
-                    INSERT INTO search_listing_matches (
-                        search_id, listing_id, first_seen_at, last_seen_at
-                    ) VALUES (?, ?, ?, ?)
-                    """,
-                    (search_id, listing_id, observed_at, observed_at),
-                )
-                outcome = ListingMatchOutcome.NEW
+                (observed_at, search_id, listing_id),
+            )
+            if not was_active:
+                outcome = ListingMatchOutcome.REAPPEARED
+            elif changed:
+                outcome = ListingMatchOutcome.CHANGED
             else:
-                was_active = bool(match["active"])
-                self.connection.execute(
-                    """
-                    UPDATE search_listing_matches
-                    SET last_seen_at = ?, active = 1
-                    WHERE search_id = ? AND listing_id = ?
-                    """,
-                    (observed_at, search_id, listing_id),
-                )
-                if not was_active:
-                    outcome = ListingMatchOutcome.REAPPEARED
-                elif changed:
-                    outcome = ListingMatchOutcome.CHANGED
-                else:
-                    outcome = ListingMatchOutcome.UNCHANGED
+                outcome = ListingMatchOutcome.UNCHANGED
 
         return ListingMatchResult(listing_id, outcome, listing_created)
 
@@ -108,6 +119,21 @@ class ListingMatchRepository:
         status: RunStatus,
     ) -> DisappearanceResult:
         """Deactivate unseen matches only after a conclusive portal result."""
+        with transaction(self.connection, immediate=True):
+            return self.reconcile_portal_locked(
+                search_id, portal, seen_listing_ids, status
+            )
+
+    def reconcile_portal_locked(
+        self,
+        search_id: int,
+        portal: PortalKey,
+        seen_listing_ids: set[int] | frozenset[int],
+        status: RunStatus,
+    ) -> DisappearanceResult:
+        """Same as :meth:`reconcile_portal`, for a caller that already holds
+        a transaction; see :meth:`ingest_locked`.
+        """
         if status not in {RunStatus.SUCCESS, RunStatus.EMPTY}:
             return DisappearanceResult(reconciled=False)
         seen = frozenset(seen_listing_ids)
@@ -129,28 +155,27 @@ class ListingMatchRepository:
             return DisappearanceResult(reconciled=True)
 
         globally_inactive: list[int] = []
-        with transaction(self.connection, immediate=True):
-            self.connection.executemany(
+        self.connection.executemany(
+            """
+            UPDATE search_listing_matches SET active = 0
+            WHERE search_id = ? AND listing_id = ?
+            """,
+            ((search_id, listing_id) for listing_id in missing),
+        )
+        for listing_id in missing:
+            still_active = self.connection.execute(
                 """
-                UPDATE search_listing_matches SET active = 0
-                WHERE search_id = ? AND listing_id = ?
+                SELECT 1 FROM search_listing_matches
+                WHERE listing_id = ? AND active = 1 LIMIT 1
                 """,
-                ((search_id, listing_id) for listing_id in missing),
-            )
-            for listing_id in missing:
-                still_active = self.connection.execute(
-                    """
-                    SELECT 1 FROM search_listing_matches
-                    WHERE listing_id = ? AND active = 1 LIMIT 1
-                    """,
+                (listing_id,),
+            ).fetchone()
+            if still_active is None:
+                self.connection.execute(
+                    "UPDATE listings SET active = 0 WHERE id = ?",
                     (listing_id,),
-                ).fetchone()
-                if still_active is None:
-                    self.connection.execute(
-                        "UPDATE listings SET active = 0 WHERE id = ?",
-                        (listing_id,),
-                    )
-                    globally_inactive.append(listing_id)
+                )
+                globally_inactive.append(listing_id)
         return DisappearanceResult(
             reconciled=True,
             inactive_match_ids=missing,
