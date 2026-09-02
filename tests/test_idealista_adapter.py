@@ -2,6 +2,7 @@ import pytest
 from scrapy.http import HtmlResponse, Request
 
 from scrapyrealestate.domain.legacy_mapper import map_legacy_item
+from scrapyrealestate.domain.search import NormalizedSearch, SearchFilters
 from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.portals.base import PortalRequest, PortalRequestError, PortalTransport
 from scrapyrealestate.portals.idealista import IdealistaAdapter, IdealistaProxyAdapter
@@ -70,6 +71,25 @@ def test_idealista_build_request_rejects_wrong_domain(adapter_class):
 def test_idealista_build_request_rejects_unknown_transaction_section(adapter_class):
     with pytest.raises(PortalRequestError, match="transaction type"):
         adapter_class().build_request("https://www.idealista.com/traspaso-viviendas/madrid/")
+
+
+@pytest.mark.parametrize("adapter_class", [IdealistaAdapter, IdealistaProxyAdapter])
+def test_idealista_build_request_from_search_is_explicitly_unsupported(adapter_class):
+    # Idealista's real location taxonomy is a <province>-<municipality> pair
+    # (e.g. "madrid-madrid" above), not derivable from one free-text location
+    # string without a lookup table this adapter does not have. Guessing
+    # "<slug>-<slug>" would be silently wrong for any municipality whose
+    # province has a different name (e.g. Getafe, in Madrid province), so
+    # this adapter relies on the shared BasePortalAdapter default instead of
+    # implementing its own _build_search_url -- explicit unsupported, not a
+    # best-effort guess, per AGENTS.md.
+    search = NormalizedSearch(
+        name="Madrid",
+        transaction_type=TransactionType.BUY,
+        filters=SearchFilters(location="Madrid"),
+    )
+    with pytest.raises(PortalRequestError, match="not implemented"):
+        adapter_class().build_request_from_search(search)
 
 
 SEARCH_URL = (

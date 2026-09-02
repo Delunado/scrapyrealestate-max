@@ -250,7 +250,15 @@ its own fixture-backed contract tests
 `degraded=True` and promise no anti-bot bypass. They intentionally share the
 `idealista.com` domain, so `PortalRegistry.get_by_hostname` cannot resolve between
 them; portal selection stays a config-driven choice (the current `proxy_idealista`
-flag), never hostname routing, exactly as `main.py` already does today.
+flag), never hostname routing, exactly as `main.py` already does today. Neither
+Idealista adapter overrides `_build_search_url`, so `build_request_from_search`
+raises the shared "not implemented" `PortalRequestError` for both: Idealista's
+location taxonomy is a `<province>-<municipality>` pair (e.g. `madrid-madrid`
+in its own fixtures), not one this codebase can safely derive from a single
+free-text location without a province lookup table it does not have — guessing
+`<slug>-<slug>` would silently misroute any municipality whose province is
+named differently. The legacy-compatible `build_request(raw_url)` path is
+unaffected.
 
 ## Application boundaries to preserve
 

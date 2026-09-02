@@ -81,7 +81,7 @@ than code complexity.
 - [x] **Hard** — Implement and fixture-test normalized URL/request construction for common location and transaction filters in Habitaclia.
 - [x] **Hard** — Implement and fixture-test normalized URL/request construction for common location and transaction filters in Fotocasa.
 - [x] **Hard** — Implement and fixture-test normalized URL/request construction for common location and transaction filters in Yaencontre.
-- [ ] **Externally unreliable** — Implement only currently verifiable Idealista request translation; keep unsupported or blocked capabilities explicit.
+- [x] **Externally unreliable** — Implement only currently verifiable Idealista request translation; keep unsupported or blocked capabilities explicit.
 - [ ] **Easy** — Document the final adapter contract and update `AGENTS.md` with the tested steps for adding a portal.
 
 ## Phase 5 — Isolated scraping execution and ingestion

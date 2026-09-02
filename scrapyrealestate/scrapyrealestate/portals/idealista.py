@@ -4,6 +4,15 @@ Both variants default to ``degraded=True``: DataDome commonly blocks headless
 automation and public rotating proxies are inherently unreliable, so neither
 adapter promises an anti-bot bypass. Callers must treat Idealista health as
 independent of overall system health, per AGENTS.md.
+
+Neither adapter overrides ``_build_search_url``: Idealista's location
+taxonomy is a ``<province>-<municipality>`` pair (e.g. the "madrid-madrid"
+below), not one this codebase can safely derive from a single free-text
+location without a province lookup table it does not have. Guessing
+``"<slug>-<slug>"`` would silently misroute any municipality whose province
+has a different name. ``build_request_from_search`` therefore raises the
+shared ``BasePortalAdapter`` "not implemented" error rather than a best-effort
+guess; the legacy-compatible ``build_request(raw_url)`` path is unaffected.
 """
 
 from typing import ClassVar
