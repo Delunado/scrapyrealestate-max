@@ -42,7 +42,8 @@ infrastructure without a concrete requirement and an explicit update to
 - `TASKS.md`: canonical ordered improvement plan. Read it before making changes.
 
 There is currently no package metadata, type checker, CI workflow, schema migration
-system, or database. Offline tests use pytest with shared fixtures in `tests/`.
+system, or database. Offline tests use pytest with shared fixtures in `tests/`, and
+Ruff enforces the focused Python 3.12 lint baseline configured in `pyproject.toml`.
 
 ## Current runtime flow
 
@@ -205,6 +206,9 @@ python -m compileall -q scrapyrealestate
 
 # From the repository root: offline unit and import smoke tests
 python -m pytest
+
+# From the repository root: focused Python 3.12 lint baseline
+python -m ruff check .
 
 # From scrapyrealestate/: requires installed project dependencies
 scrapy list

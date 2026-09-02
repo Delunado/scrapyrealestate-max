@@ -89,7 +89,7 @@ class PisoscomSpider(CrawlSpider):
                     town = town.split(' - ')[0]
                 elif '-' in town_:
                     town = town.split('-')[0]
-            except:
+            except (IndexError, AttributeError):
                 pass
 
             try:
@@ -99,7 +99,7 @@ class PisoscomSpider(CrawlSpider):
                     if id_ == id:
                         same_id = True
                         break
-            except:
+            except IndexError:
                 id = ''
 
             price_el = flats[nflat].find("span", {"class": "ad-preview__price"})

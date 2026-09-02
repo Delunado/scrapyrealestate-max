@@ -1,4 +1,7 @@
-import scrapy, logging, json
+import json
+import logging
+
+import scrapy
 from bs4 import BeautifulSoup
 from scrapyrealestate.items import ScrapyrealestateItem
 from scrapy_playwright.page import PageMethod

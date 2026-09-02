@@ -1,4 +1,6 @@
-import scrapy, logging
+import logging
+
+import scrapy
 from bs4 import BeautifulSoup
 from scrapyrealestate.items import ScrapyrealestateItem
 from scrapy_playwright.page import PageMethod
@@ -75,7 +77,7 @@ class IdealistaSpider(scrapy.Spider):
             try:
                 if town[0] == ' ':
                     town = town[1:]
-            except:
+            except IndexError:
                 pass
 
             try:
@@ -83,18 +85,18 @@ class IdealistaSpider(scrapy.Spider):
                     town = town.split(' / ')[1]
                 elif '-' in town:
                     town = town.split('-')[0]
-            except:
+            except (IndexError, AttributeError):
                 pass
 
             try:
                 if neighbour[0] == ' ':
                     neighbour = neighbour[1:]
-            except:
+            except IndexError:
                 pass
             try:
                 if number[0] == ' ':
                     number = number[1:]
-            except:
+            except IndexError:
                 pass
 
             price = flats[nflat].find("span", {"class": "item-price h2-simulated"}).text.strip()
@@ -108,7 +110,7 @@ class IdealistaSpider(scrapy.Spider):
                     if id_ == id:
                         same_id = True
                         break
-            except:
+            except IndexError:
                 id = ''
 
             # Identificamos cada detalle (habitaciones, m², planta) por su sufijo.
@@ -124,9 +126,12 @@ class IdealistaSpider(scrapy.Spider):
                     continue
                 # Hay pisos sin algún dato; lo dejamos vacío para evitar errores.
                 else:
-                    if not 'rooms' in locals(): rooms = ''
-                    if not 'm2' in locals(): m2 = ''
-                    if not 'floor' in locals(): floor = ''
+                    if 'rooms' not in locals():
+                        rooms = ''
+                    if 'm2' not in locals():
+                        m2 = ''
+                    if 'floor' not in locals():
+                        floor = ''
 
             # Si está activado, pasamos al siguiente ya que repite ids
             if same_id:
@@ -138,7 +143,7 @@ class IdealistaSpider(scrapy.Spider):
                 items['rooms'] = rooms
                 try:
                     items['floor'] = floor  # si no, falla en sitios sin pisos (p.ej. cerdaña francesa)
-                except:
+                except NameError:
                     items['floor'] = ''
                 items['town'] = town
                 items['neighbour'] = neighbour

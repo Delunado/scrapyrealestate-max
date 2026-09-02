@@ -1,4 +1,6 @@
-import scrapy, re
+import re
+
+import scrapy
 from scrapy.spiders import CrawlSpider
 from bs4 import BeautifulSoup
 from scrapyrealestate.items import ScrapyrealestateItem
@@ -44,7 +46,7 @@ class HabitacliaSpider(CrawlSpider):
         for nflat in range(len(flats)):
             try:
                 title = flats[nflat].find("h3", {"class": "list-item-title"}).find("a").text.strip()
-            except:
+            except AttributeError:
                 title = ''
             # Municipio, calle y barrio. Ejemplos de titulo:
             #   "Alquiler Piso Calle de Alcala. Magnifico piso..."
@@ -79,13 +81,13 @@ class HabitacliaSpider(CrawlSpider):
                     neighbour = town_.split(' - ')[-1]
             try:
                 number = re.findall(r'\d+', street)[0]
-            except:
+            except IndexError:
                 pass
 
             # Los anuncios "relacionados" (ady-relationship) marcan el final del listado.
             try:
                 over_flat = flats[nflat].find("span", {"class": "ady-relationship"}).text.strip()
-            except:
+            except AttributeError:
                 over_flat = ''
 
             if over_flat != '':
@@ -99,22 +101,22 @@ class HabitacliaSpider(CrawlSpider):
 
             try:
                 price = flats[nflat].find("span", {"class": "font-2"}).text.strip()
-            except:
+            except AttributeError:
                 price = ''
 
             # El texto de list-item-feature es "<m2>m² - <n> habitaciones - ...".
             feature = ''
             try:
                 feature = flats[nflat].find("p", {"class": "list-item-feature"}).text.strip()
-            except:
+            except AttributeError:
                 pass
             try:
                 rooms = feature.split('-')[1][1:6]
-            except:
+            except IndexError:
                 rooms = ''
             try:
                 m2 = feature.split('-')[0][:4]
-            except:
+            except IndexError:
                 m2 = ''
 
             # habitaclia no expone la planta en el listado; queda vacia.

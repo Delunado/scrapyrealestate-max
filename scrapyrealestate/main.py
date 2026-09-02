@@ -1,8 +1,19 @@
 #!/usr/bin/python3
 import re
-import sys, subprocess, telebot, time, os.path, os, logging, urllib.request, urllib.error, json, random
+import json
+import logging
+import os
+import os.path
+import random
+import subprocess
+import sys
+import telebot
+import time
+import urllib.error
+import urllib.request
 from os import path
-from art import *
+
+from art import tprint
 from fake_useragent import UserAgent
 
 
