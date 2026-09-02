@@ -30,6 +30,11 @@ class PisoscomAdapter(BasePortalAdapter):
         ),
     )
 
+    _TRANSACTION_SEGMENTS: ClassVar[dict[TransactionType, str]] = {
+        TransactionType.BUY: "venta",
+        TransactionType.RENT: "alquiler",
+    }
+
     def _transaction_type(self, raw_url: str) -> TransactionType | None:
         # Mirrors PisoscomSpider.parse: the first path segment is
         # "venta"/"alquiler", e.g. https://www.pisos.com/venta/pisos-madrid/.
@@ -45,3 +50,9 @@ class PisoscomAdapter(BasePortalAdapter):
         # Matches the legacy suffix in main.py: the raw URL is expected to
         # already end in "/".
         return f"{raw_url}fecharecientedesde-desc/"
+
+    def _build_search_url(self, transaction_type: TransactionType, location_slug: str) -> str:
+        # e.g. https://www.pisos.com/venta/pisos-madrid/, mirroring the
+        # "pisos-<location>" segment used by every raw search URL fixture.
+        segment = self._TRANSACTION_SEGMENTS[transaction_type]
+        return f"https://www.pisos.com/{segment}/pisos-{location_slug}/"

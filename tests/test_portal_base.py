@@ -8,7 +8,7 @@ from scrapyrealestate.domain.capabilities import (
     SearchFilterKey,
 )
 from scrapyrealestate.domain.legacy_mapper import map_legacy_item
-from scrapyrealestate.domain.search import SearchFilters
+from scrapyrealestate.domain.search import NormalizedSearch, SearchFilters
 from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.portals.base import (
     ALL_LOCAL_CAPABILITIES,
@@ -122,6 +122,50 @@ def test_metadata_reports_capabilities_for_only_the_requested_filters():
         local=frozenset({SearchFilterKey.MIN_PRICE_EUROS}),
         unsupported=frozenset({SearchFilterKey.GARAGE}),
     )
+
+
+def test_base_adapter_build_request_from_search_defaults_to_not_implemented():
+    adapter = _FakeAdapter()
+    search = NormalizedSearch(
+        name="Madrid",
+        transaction_type=TransactionType.BUY,
+        filters=SearchFilters(location="Madrid"),
+    )
+    with pytest.raises(PortalRequestError, match="not implemented"):
+        adapter.build_request_from_search(search)
+
+
+def test_base_adapter_build_request_from_search_requires_a_normalized_search():
+    with pytest.raises(TypeError, match="NormalizedSearch"):
+        _FakeAdapter().build_request_from_search("not a search")
+
+
+def test_base_adapter_build_request_from_search_rejects_unsupported_transaction_type():
+    metadata = make_metadata(transaction_types=frozenset({TransactionType.BUY}))
+
+    class _BuyOnlyAdapter(_FakeAdapter):
+        _METADATA = metadata
+
+        def _build_search_url(self, transaction_type, location_slug) -> str:
+            return f"https://www.pisos.com/{location_slug}/"
+
+    search = NormalizedSearch(
+        name="Rent search",
+        transaction_type=TransactionType.RENT,
+        filters=SearchFilters(location="Madrid"),
+    )
+    with pytest.raises(PortalRequestError, match="does not support transaction type"):
+        _BuyOnlyAdapter().build_request_from_search(search)
+
+
+def test_base_adapter_build_request_from_search_requires_a_location():
+    class _LocationAwareAdapter(_FakeAdapter):
+        def _build_search_url(self, transaction_type, location_slug) -> str:
+            return f"https://www.pisos.com/{transaction_type.value}/{location_slug}/"
+
+    search = NormalizedSearch(name="No location", transaction_type=TransactionType.BUY)
+    with pytest.raises(PortalRequestError, match="location filter is required"):
+        _LocationAwareAdapter().build_request_from_search(search)
 
 
 def test_base_adapter_normalizes_result_with_its_own_portal_key():

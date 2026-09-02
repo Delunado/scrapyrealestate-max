@@ -2,6 +2,7 @@ import pytest
 from scrapy.http import HtmlResponse, Request
 
 from scrapyrealestate.domain.legacy_mapper import map_legacy_item
+from scrapyrealestate.domain.search import NormalizedSearch, SearchFilters
 from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.portals.base import PortalRequest, PortalRequestError, PortalTransport
 from scrapyrealestate.portals.pisoscom import PisoscomAdapter
@@ -46,6 +47,58 @@ def test_pisoscom_build_request_rejects_wrong_domain():
 def test_pisoscom_build_request_rejects_unknown_transaction_section():
     with pytest.raises(PortalRequestError, match="transaction type"):
         PisoscomAdapter().build_request("https://www.pisos.com/traspaso/pisos-madrid/")
+
+
+@pytest.mark.parametrize(
+    ("transaction_type", "expected_url"),
+    [
+        (
+            TransactionType.BUY,
+            "https://www.pisos.com/venta/pisos-madrid/fecharecientedesde-desc/",
+        ),
+        (
+            TransactionType.RENT,
+            "https://www.pisos.com/alquiler/pisos-madrid/fecharecientedesde-desc/",
+        ),
+    ],
+)
+def test_pisoscom_builds_request_from_normalized_search(transaction_type, expected_url):
+    search = NormalizedSearch(
+        name="Madrid",
+        transaction_type=transaction_type,
+        filters=SearchFilters(location="Madrid"),
+    )
+
+    request = PisoscomAdapter().build_request_from_search(search)
+
+    assert request == PortalRequest(
+        portal=PortalKey.PISOSCOM,
+        spider_name="pisoscom",
+        start_url=expected_url,
+        transaction_type=transaction_type,
+        raw_url=expected_url.removesuffix("fecharecientedesde-desc/"),
+    )
+
+
+def test_pisoscom_build_request_from_search_slugifies_accented_multi_word_location():
+    search = NormalizedSearch(
+        name="Alcala",
+        transaction_type=TransactionType.BUY,
+        filters=SearchFilters(location="Alcalá de Henares"),
+    )
+
+    request = PisoscomAdapter().build_request_from_search(search)
+
+    assert request.start_url == (
+        "https://www.pisos.com/venta/pisos-alcala-de-henares/fecharecientedesde-desc/"
+    )
+
+
+def test_pisoscom_build_request_from_search_requires_a_location():
+    search = NormalizedSearch(name="No location", transaction_type=TransactionType.BUY)
+
+    with pytest.raises(PortalRequestError, match="location filter is required"):
+        PisoscomAdapter().build_request_from_search(search)
 
 
 SEARCH_URL = "https://www.pisos.com/venta/pisos-madrid/fecharecientedesde-desc/"

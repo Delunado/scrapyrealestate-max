@@ -23,8 +23,9 @@ from scrapyrealestate.domain.capabilities import (
 )
 from scrapyrealestate.domain.legacy_mapper import map_legacy_item
 from scrapyrealestate.domain.listing import NormalizedListing
-from scrapyrealestate.domain.search import SearchFilters
+from scrapyrealestate.domain.search import NormalizedSearch, SearchFilters
 from scrapyrealestate.domain.values import PortalKey, TransactionType
+from scrapyrealestate.portals.location import slugify_location
 
 
 class PortalRequestError(ValueError):
@@ -228,6 +229,62 @@ class BasePortalAdapter(PortalAdapter):
 
     def normalize_result(self, item: Mapping[str, Any]) -> NormalizedListing:
         return map_legacy_item(item, portal=self.metadata.key)
+
+    def build_request_from_search(self, search: NormalizedSearch) -> PortalRequest:
+        """Build a crawl-ready request directly from a normalized search.
+
+        Unlike :meth:`build_request`, this needs no pre-existing legacy raw
+        URL: it encodes the search's transaction type and location into a
+        fresh search URL via :meth:`_build_search_url`. Only the location
+        filter is encoded remotely (a best-effort municipality slug; see
+        ``portals.location``); every other filter, including location
+        itself once results come back, is still evaluated locally. Adapters
+        that do not implement :meth:`_build_search_url` raise
+        ``PortalRequestError`` explicitly rather than silently falling back
+        to an unrelated URL.
+        """
+        if not isinstance(search, NormalizedSearch):
+            raise TypeError("search must be a NormalizedSearch")
+        metadata = self.metadata
+        if search.transaction_type not in metadata.transaction_types:
+            raise PortalRequestError(
+                f"{metadata.key.value}: does not support transaction type "
+                f"{search.transaction_type.value!r}"
+            )
+
+        location = (search.filters.location or "").strip()
+        if not location:
+            raise PortalRequestError(
+                f"{metadata.key.value}: a location filter is required to build "
+                "a search URL for this portal"
+            )
+        try:
+            location_slug = slugify_location(location)
+        except ValueError as error:
+            raise PortalRequestError(f"{metadata.key.value}: {error}") from error
+
+        search_url = self._build_search_url(search.transaction_type, location_slug)
+        return PortalRequest(
+            portal=metadata.key,
+            spider_name=metadata.spider_name,
+            start_url=self._apply_recent_sort(search_url),
+            transaction_type=search.transaction_type,
+            raw_url=search_url,
+        )
+
+    def _build_search_url(
+        self, transaction_type: TransactionType, location_slug: str
+    ) -> str:
+        """Build this portal's search URL, before the recent-sort suffix.
+
+        The default keeps :meth:`build_request_from_search` explicit about
+        portals that do not (yet) support normalized-search URL
+        construction; adapters that do override this hook instead.
+        """
+        raise PortalRequestError(
+            f"{self.metadata.key.value}: normalized search URL construction "
+            "is not implemented for this portal"
+        )
 
     @abstractmethod
     def _transaction_type(self, raw_url: str) -> TransactionType | None:

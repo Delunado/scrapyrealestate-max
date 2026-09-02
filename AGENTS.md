@@ -227,6 +227,21 @@ own. Use this — not `FilterCapabilities.to_dict()`, which describes a
 portal's full capability independent of any one search — wherever code needs
 to say what will actually happen to a particular search's filters.
 
+`BasePortalAdapter.build_request_from_search(search: NormalizedSearch)` builds a
+crawl-ready `PortalRequest` directly from a normalized search, with no
+pre-existing raw URL: it validates the search's transaction type against
+`metadata.transaction_types`, requires a non-empty `filters.location`, slugifies
+it with `portals.location.slugify_location` (a best-effort, accent-stripping,
+hyphenating transform — accurate for a plain municipality name, not for
+portal-specific taxonomy codes such as Fotocasa's provincial-capital
+`<city>-capital` slugs), and delegates the fixed URL template to each adapter's
+`_build_search_url(transaction_type, location_slug)` hook. Only `location` is
+encoded remotely this way; every filter, including location once results come
+back, still goes through local evaluation, so an imprecise slug degrades to a
+smaller/larger local-filtered result set rather than a silently wrong one. An
+adapter that has not implemented `_build_search_url` raises `PortalRequestError`
+explicitly (the shared default) instead of guessing.
+
 `portals/pisoscom.py`, `habitaclia.py`, `fotocasa.py`, `yaencontre.py`, and
 `idealista.py` implement one adapter per row of the portal table above, each with
 its own fixture-backed contract tests
