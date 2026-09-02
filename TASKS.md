@@ -78,7 +78,7 @@ than code complexity.
 - [x] **Medium** — Replace domain parsing and the central portal `if/elif` dispatcher with registry lookup while keeping legacy raw URLs working.
 - [x] **Medium** — Add adapter capability reporting that identifies which requested filters are encoded remotely, evaluated locally, or unavailable.
 - [x] **Hard** — Implement and fixture-test normalized URL/request construction for common location and transaction filters in Pisos.com.
-- [ ] **Hard** — Implement and fixture-test normalized URL/request construction for common location and transaction filters in Habitaclia.
+- [x] **Hard** — Implement and fixture-test normalized URL/request construction for common location and transaction filters in Habitaclia.
 - [ ] **Hard** — Implement and fixture-test normalized URL/request construction for common location and transaction filters in Fotocasa.
 - [ ] **Hard** — Implement and fixture-test normalized URL/request construction for common location and transaction filters in Yaencontre.
 - [ ] **Externally unreliable** — Implement only currently verifiable Idealista request translation; keep unsupported or blocked capabilities explicit.

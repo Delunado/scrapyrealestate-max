@@ -2,6 +2,7 @@ import pytest
 from scrapy.http import HtmlResponse, Request
 
 from scrapyrealestate.domain.legacy_mapper import map_legacy_item
+from scrapyrealestate.domain.search import NormalizedSearch, SearchFilters
 from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.portals.base import PortalRequest, PortalRequestError, PortalTransport
 from scrapyrealestate.portals.habitaclia import HabitacliaAdapter
@@ -45,6 +46,44 @@ def test_habitaclia_build_request_rejects_wrong_domain():
 def test_habitaclia_build_request_rejects_unknown_transaction_section():
     with pytest.raises(PortalRequestError, match="transaction type"):
         HabitacliaAdapter().build_request("https://www.habitaclia.com/traspaso-madrid.htm")
+
+
+@pytest.mark.parametrize(
+    ("transaction_type", "expected_url"),
+    [
+        (
+            TransactionType.BUY,
+            "https://www.habitaclia.com/venta-madrid.htm?ordenar=mas_recientes",
+        ),
+        (
+            TransactionType.RENT,
+            "https://www.habitaclia.com/alquiler-madrid.htm?ordenar=mas_recientes",
+        ),
+    ],
+)
+def test_habitaclia_builds_request_from_normalized_search(transaction_type, expected_url):
+    search = NormalizedSearch(
+        name="Madrid",
+        transaction_type=transaction_type,
+        filters=SearchFilters(location="Madrid"),
+    )
+
+    request = HabitacliaAdapter().build_request_from_search(search)
+
+    assert request == PortalRequest(
+        portal=PortalKey.HABITACLIA,
+        spider_name="habitaclia",
+        start_url=expected_url,
+        transaction_type=transaction_type,
+        raw_url=expected_url.removesuffix("?ordenar=mas_recientes"),
+    )
+
+
+def test_habitaclia_build_request_from_search_requires_a_location():
+    search = NormalizedSearch(name="No location", transaction_type=TransactionType.BUY)
+
+    with pytest.raises(PortalRequestError, match="location filter is required"):
+        HabitacliaAdapter().build_request_from_search(search)
 
 
 SEARCH_URL = "https://www.habitaclia.com/alquiler-madrid.htm?ordenar=mas_recientes"
