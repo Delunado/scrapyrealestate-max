@@ -15,9 +15,15 @@ from enum import StrEnum
 from typing import Any, ClassVar
 from urllib.parse import urlsplit
 
-from scrapyrealestate.domain.capabilities import FilterCapabilities, SearchFilterKey
+from scrapyrealestate.domain.capabilities import (
+    CapabilityReport,
+    FilterCapabilities,
+    SearchFilterKey,
+    report_capabilities,
+)
 from scrapyrealestate.domain.legacy_mapper import map_legacy_item
 from scrapyrealestate.domain.listing import NormalizedListing
+from scrapyrealestate.domain.search import SearchFilters
 from scrapyrealestate.domain.values import PortalKey, TransactionType
 
 
@@ -103,6 +109,18 @@ class PortalMetadata:
     def requires_browser(self) -> bool:
         """Whether the spider needs Playwright/Chromium to fetch results."""
         return self.transport is PortalTransport.PLAYWRIGHT
+
+    def report_capabilities(self, filters: SearchFilters) -> CapabilityReport:
+        """Classify each filter ``filters`` requests as remote/local/unsupported.
+
+        Only filters the search actually constrains are classified; a filter
+        left unset is omitted rather than silently implied one way or the
+        other. Callers (a search-creation form, an orchestration log) can use
+        this to show exactly what will happen to a given search on this
+        portal instead of the portal's full, request-independent capability
+        set.
+        """
+        return report_capabilities(filters, self.capabilities)
 
     def to_dict(self) -> dict[str, Any]:
         return {

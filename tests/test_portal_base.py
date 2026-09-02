@@ -2,7 +2,13 @@ from datetime import datetime, timezone
 
 import pytest
 
+from scrapyrealestate.domain.capabilities import (
+    CapabilityReport,
+    FilterCapabilities,
+    SearchFilterKey,
+)
 from scrapyrealestate.domain.legacy_mapper import map_legacy_item
+from scrapyrealestate.domain.search import SearchFilters
 from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.portals.base import (
     ALL_LOCAL_CAPABILITIES,
@@ -99,6 +105,23 @@ def test_base_adapter_rejects_unresolvable_transaction_type():
     adapter = _FakeAdapter()
     with pytest.raises(PortalRequestError, match="transaction type"):
         adapter.build_request("https://www.pisos.com/traspaso/pisos-madrid/")
+
+
+def test_metadata_reports_capabilities_for_only_the_requested_filters():
+    metadata = make_metadata(
+        capabilities=FilterCapabilities(
+            unsupported=frozenset({SearchFilterKey.GARAGE}),
+            local=frozenset(SearchFilterKey) - {SearchFilterKey.GARAGE},
+        )
+    )
+    filters = SearchFilters(min_price_euros=100_000, garage=True)
+
+    report = metadata.report_capabilities(filters)
+
+    assert report == CapabilityReport(
+        local=frozenset({SearchFilterKey.MIN_PRICE_EUROS}),
+        unsupported=frozenset({SearchFilterKey.GARAGE}),
+    )
 
 
 def test_base_adapter_normalizes_result_with_its_own_portal_key():

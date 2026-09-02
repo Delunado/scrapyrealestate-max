@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
+from scrapyrealestate.domain.search import SearchFilters
+
 
 class SearchFilterKey(StrEnum):
     """Stable names for every constraint in :class:`SearchFilters`."""
@@ -103,3 +105,81 @@ class FilterCapabilities:
                 for support in FilterSupport
             }
         )
+
+
+def active_filter_keys(filters: SearchFilters) -> frozenset[SearchFilterKey]:
+    """Return every filter ``filters`` actually constrains.
+
+    ``SearchFilters`` uses ``None`` (or an empty ``property_types``) for "no
+    constraint"; every other value, including ``False`` for a boolean
+    amenity, is a real request that some portal must classify.
+    """
+    single_valued = {
+        SearchFilterKey.MIN_PRICE_EUROS: filters.min_price_euros,
+        SearchFilterKey.MAX_PRICE_EUROS: filters.max_price_euros,
+        SearchFilterKey.MIN_AREA_SQM: filters.min_area_sqm,
+        SearchFilterKey.MAX_AREA_SQM: filters.max_area_sqm,
+        SearchFilterKey.MIN_ROOMS: filters.min_rooms,
+        SearchFilterKey.MAX_ROOMS: filters.max_rooms,
+        SearchFilterKey.MIN_BATHROOMS: filters.min_bathrooms,
+        SearchFilterKey.MAX_BATHROOMS: filters.max_bathrooms,
+        SearchFilterKey.LOCATION: filters.location,
+        SearchFilterKey.NEIGHBOURHOOD: filters.neighbourhood,
+        SearchFilterKey.MIN_FLOOR: filters.min_floor,
+        SearchFilterKey.MAX_FLOOR: filters.max_floor,
+        SearchFilterKey.ELEVATOR: filters.elevator,
+        SearchFilterKey.TERRACE: filters.terrace,
+        SearchFilterKey.GARAGE: filters.garage,
+        SearchFilterKey.MAX_PRICE_PER_SQM: filters.max_price_per_sqm,
+    }
+    active = {key for key, value in single_valued.items() if value is not None}
+    if filters.property_types:
+        active.add(SearchFilterKey.PROPERTY_TYPES)
+    return frozenset(active)
+
+
+@dataclass(frozen=True, slots=True)
+class CapabilityReport:
+    """Where each filter a search actually requests will be evaluated.
+
+    Unlike :class:`FilterCapabilities`, which classifies every possible
+    filter a portal could ever be asked for, a report only classifies the
+    filters one particular search requests, so a caller can render or log
+    exactly what will happen to that search without guessing from silence.
+    """
+
+    remote: frozenset[SearchFilterKey] = field(default_factory=frozenset)
+    local: frozenset[SearchFilterKey] = field(default_factory=frozenset)
+    unsupported: frozenset[SearchFilterKey] = field(default_factory=frozenset)
+
+    @property
+    def has_unsupported(self) -> bool:
+        return bool(self.unsupported)
+
+    def to_dict(self) -> dict[str, list[str]]:
+        return {
+            support.value: sorted(key.value for key in getattr(self, support.value))
+            for support in FilterSupport
+        }
+
+
+def report_capabilities(
+    filters: SearchFilters, capabilities: FilterCapabilities
+) -> CapabilityReport:
+    """Classify only the filters ``filters`` requests against ``capabilities``.
+
+    A filter ``filters`` leaves unset is omitted entirely rather than being
+    implied remote, local, or unsupported.
+    """
+    if not isinstance(capabilities, FilterCapabilities):
+        raise TypeError("capabilities must be FilterCapabilities")
+    groups: dict[FilterSupport, set[SearchFilterKey]] = {
+        support: set() for support in FilterSupport
+    }
+    for key in active_filter_keys(filters):
+        groups[capabilities.support_for(key)].add(key)
+    return CapabilityReport(
+        remote=frozenset(groups[FilterSupport.REMOTE]),
+        local=frozenset(groups[FilterSupport.LOCAL]),
+        unsupported=frozenset(groups[FilterSupport.UNSUPPORTED]),
+    )

@@ -218,6 +218,15 @@ capability tests, status reporting, and an update to the portal table in this fi
 Assess a portal before integrating it; strong anti-bot bypasses and paid solving
 services are out of scope by default.
 
+`domain.capabilities.report_capabilities(filters, capabilities)` (also exposed as
+`PortalMetadata.report_capabilities(filters)`) classifies only the
+`SearchFilterKey`s a given `SearchFilters` actually constrains (`None`, or an
+empty `property_types`, means "not requested" and is omitted, never implied);
+`domain.capabilities.active_filter_keys` returns that requested set on its
+own. Use this — not `FilterCapabilities.to_dict()`, which describes a
+portal's full capability independent of any one search — wherever code needs
+to say what will actually happen to a particular search's filters.
+
 `portals/pisoscom.py`, `habitaclia.py`, `fotocasa.py`, `yaencontre.py`, and
 `idealista.py` implement one adapter per row of the portal table above, each with
 its own fixture-backed contract tests

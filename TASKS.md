@@ -76,7 +76,7 @@ than code complexity.
 - [x] **Medium** — Add the Yaencontre adapter around the existing Playwright spider, including rendered-card expectations, metadata, and contract tests.
 - [x] **Externally unreliable** — Add the Idealista adapter and optional proxy transport metadata with a default degraded/unreliable status and no promise of anti-bot bypass.
 - [x] **Medium** — Replace domain parsing and the central portal `if/elif` dispatcher with registry lookup while keeping legacy raw URLs working.
-- [ ] **Medium** — Add adapter capability reporting that identifies which requested filters are encoded remotely, evaluated locally, or unavailable.
+- [x] **Medium** — Add adapter capability reporting that identifies which requested filters are encoded remotely, evaluated locally, or unavailable.
 - [ ] **Hard** — Implement and fixture-test normalized URL/request construction for common location and transaction filters in Pisos.com.
 - [ ] **Hard** — Implement and fixture-test normalized URL/request construction for common location and transaction filters in Habitaclia.
 - [ ] **Hard** — Implement and fixture-test normalized URL/request construction for common location and transaction filters in Fotocasa.
