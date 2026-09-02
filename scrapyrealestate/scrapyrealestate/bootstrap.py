@@ -4,12 +4,18 @@ from __future__ import annotations
 
 import json
 import logging
+import signal
 import sqlite3
-from collections.abc import Callable
+import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from types import FrameType
+from typing import Protocol
 
 from flask import Flask
+from werkzeug.serving import BaseWSGIServer, make_server
 
 from scrapyrealestate.execution.runner import SpiderRunner
 from scrapyrealestate.flask_server import (
@@ -33,7 +39,52 @@ from scrapyrealestate.services.search_triggering import SearchTriggerService
 
 
 logger = logging.getLogger(__name__)
-ServeApplication = Callable[[Flask], None]
+DEFAULT_SHUTDOWN_GRACE_SECONDS = 10.0
+
+
+class ApplicationServer(Protocol):
+    """Blocking web-server boundary owned by the application runtime."""
+
+    def serve(self, app: Flask) -> None: ...
+
+    def request_shutdown(self) -> None: ...
+
+
+class WerkzeugApplicationServer:
+    """Interim stoppable server, replaced by production WSGI in the next task."""
+
+    def __init__(self, host: str = "0.0.0.0", port: int = 8080) -> None:
+        self._host = host
+        self._port = port
+        self._lock = threading.Lock()
+        self._shutdown_requested = False
+        self._server: BaseWSGIServer | None = None
+
+    def serve(self, app: Flask) -> None:
+        with self._lock:
+            if self._shutdown_requested:
+                return
+            server = make_server(self._host, self._port, app, threaded=False)
+            self._server = server
+        try:
+            server.serve_forever()
+        finally:
+            server.server_close()
+            with self._lock:
+                self._server = None
+
+    def request_shutdown(self) -> None:
+        with self._lock:
+            self._shutdown_requested = True
+            server = self._server
+        if server is not None:
+            # socketserver.shutdown() must be called from outside serve_forever's
+            # thread, including when this request originated in a signal handler.
+            threading.Thread(
+                target=server.shutdown,
+                name="scrapyrealestate-web-shutdown",
+                daemon=True,
+            ).start()
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,32 +103,55 @@ class ApplicationRuntime:
         *,
         app: Flask,
         scheduler: InProcessScheduler,
+        spider_runner: SpiderRunner,
         connection: sqlite3.Connection,
         report: BootstrapReport,
     ) -> None:
         self.app = app
         self.scheduler = scheduler
         self.report = report
+        self._spider_runner = spider_runner
         self._connection = connection
         self._closed = False
+        self._server: ApplicationServer | None = None
+        self._shutdown_requested = threading.Event()
 
-    def run(self, serve: ServeApplication) -> None:
-        """Run the scheduler beside a blocking web server callable."""
+    def run(self, server: ApplicationServer) -> None:
+        """Run scheduler and web server with temporary process signal handlers."""
         if self._closed:
             raise RuntimeError("application runtime is closed")
+        self._server = server
         self.scheduler.start()
         try:
-            serve(self.app)
+            with _installed_signal_handlers(self.request_shutdown):
+                server.serve(self.app)
         finally:
             self.close()
 
-    def close(self) -> None:
-        """Stop scheduling and close the application-owned database connection."""
+    def request_shutdown(self) -> None:
+        """Stop accepting new work and ask the blocking web server to return."""
+        self._shutdown_requested.set()
+        self.scheduler.request_stop()
+        self._spider_runner.stop_accepting()
+        server = self._server
+        if server is not None:
+            server.request_shutdown()
+
+    def close(self, grace_seconds: float = DEFAULT_SHUTDOWN_GRACE_SECONDS) -> bool:
+        """Drain/terminate child crawls, stop scheduling, and close SQLite."""
         if self._closed:
-            return
-        self.scheduler.stop()
+            return True
+        if grace_seconds < 0:
+            raise ValueError("grace_seconds cannot be negative")
+        self.request_shutdown()
+        crawls_stopped = self._spider_runner.shutdown(grace_seconds)
+        scheduler_stopped = self.scheduler.stop(timeout=grace_seconds + 5.0)
+        if not scheduler_stopped:
+            logger.error("scheduler did not stop within the shutdown grace period")
+            return False
         self._connection.close()
         self._closed = True
+        return crawls_stopped
 
 
 def build_application(
@@ -132,6 +206,7 @@ def build_application(
     return ApplicationRuntime(
         app=app,
         scheduler=scheduler,
+        spider_runner=runner,
         connection=connection,
         report=report,
     )
@@ -140,14 +215,7 @@ def build_application(
 def main() -> None:
     """Run the transitional Flask server without waiting for ``config.json``."""
     runtime = build_application()
-    runtime.run(
-        lambda app: app.run(
-            host="0.0.0.0",
-            port=8080,
-            use_reloader=False,
-            threaded=False,
-        )
-    )
+    runtime.run(WerkzeugApplicationServer())
 
 
 def _import_legacy_sources(
@@ -198,6 +266,26 @@ def _database_ready(database: Database) -> bool:
     except sqlite3.Error:
         return False
     return True
+
+
+@contextmanager
+def _installed_signal_handlers(on_shutdown) -> Iterator[None]:
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+    signals = (signal.SIGTERM, signal.SIGINT)
+    previous = {signum: signal.getsignal(signum) for signum in signals}
+
+    def handle_signal(_signum: int, _frame: FrameType | None) -> None:
+        on_shutdown()
+
+    try:
+        for signum in signals:
+            signal.signal(signum, handle_signal)
+        yield
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
 
 
 if __name__ == "__main__":

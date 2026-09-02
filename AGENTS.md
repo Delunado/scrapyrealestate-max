@@ -25,6 +25,11 @@ infrastructure without a concrete requirement and an explicit update to
   composes repositories/orchestration/scheduler/Flask, and starts web plus scheduler
   without waiting for `config.json`. It is not the deployed entrypoint until the
   explicit Phase 7 cutover task.
+  `ApplicationRuntime` temporarily owns SIGTERM/SIGINT handlers while serving: a
+  signal stops new scheduler dispatches and spider launches, requests web shutdown,
+  allows a bounded crawl grace period, kills remaining child process groups, then
+  closes the scheduler-owned SQLite connection. The current stoppable Werkzeug
+  server is transitional until the production-WSGI task.
 - `scrapyrealestate/scrapy.cfg`: Scrapy project marker. Scrapy commands must run
   from this directory unless `SCRAPY_SETTINGS_MODULE` is set explicitly.
 - `scrapyrealestate/scrapyrealestate/settings.py`: shared Scrapy and Playwright

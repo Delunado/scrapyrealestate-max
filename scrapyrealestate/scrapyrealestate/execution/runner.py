@@ -13,6 +13,8 @@ from __future__ import annotations
 import os
 import signal
 import subprocess
+import threading
+import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
@@ -66,6 +68,45 @@ class SpiderRunner:
         self._working_directory = working_directory
         self._build_command = build_command or default_scrapy_command
         self._max_diagnostic_bytes = max_diagnostic_bytes
+        self._condition = threading.Condition()
+        self._active_processes: set[subprocess.Popen] = set()
+        self._accepting_runs = True
+
+    @property
+    def active_process_count(self) -> int:
+        with self._condition:
+            return len(self._active_processes)
+
+    def stop_accepting(self) -> None:
+        """Prevent future subprocess launches without interrupting active crawls."""
+        with self._condition:
+            self._accepting_runs = False
+
+    def shutdown(self, grace_seconds: float = 10.0) -> bool:
+        """Drain active crawls for a bounded grace period, then kill survivors."""
+        if grace_seconds < 0:
+            raise ValueError("grace_seconds cannot be negative")
+        self.stop_accepting()
+        deadline = time.monotonic() + grace_seconds
+        with self._condition:
+            while self._active_processes:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                self._condition.wait(timeout=remaining)
+            survivors = tuple(self._active_processes)
+
+        for process in survivors:
+            self._signal_kill(process)
+
+        kill_deadline = time.monotonic() + _KILL_GRACE_SECONDS
+        with self._condition:
+            while self._active_processes:
+                remaining = kill_deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                self._condition.wait(timeout=remaining)
+            return not self._active_processes
 
     def run(self, request: PortalRunRequest) -> PortalRunResult:
         started_at = utc_now()
@@ -86,28 +127,43 @@ class SpiderRunner:
                 subprocess, "CREATE_NEW_PROCESS_GROUP", 0
             )
 
-        try:
-            process = subprocess.Popen(command, **popen_kwargs)
-        except OSError as error:
-            return self._result(
-                request,
-                started_at,
-                utc_now(),
-                RunStatus.TRANSPORT_ERROR,
-                diagnostic=f"could not launch spider process: {error}",
-            )
+        with self._condition:
+            if not self._accepting_runs:
+                return self._result(
+                    request,
+                    started_at,
+                    utc_now(),
+                    RunStatus.UNAVAILABLE,
+                    diagnostic="spider runner is shutting down",
+                )
+            try:
+                process = subprocess.Popen(command, **popen_kwargs)
+            except OSError as error:
+                return self._result(
+                    request,
+                    started_at,
+                    utc_now(),
+                    RunStatus.TRANSPORT_ERROR,
+                    diagnostic=f"could not launch spider process: {error}",
+                )
+            self._active_processes.add(process)
 
         try:
-            _stdout, stderr = process.communicate(timeout=request.timeout_seconds)
-        except subprocess.TimeoutExpired:
-            self._kill(process)
-            return self._result(
-                request,
-                started_at,
-                utc_now(),
-                RunStatus.TIMEOUT,
-                diagnostic=f"spider timed out after {request.timeout_seconds:.0f}s",
-            )
+            try:
+                _stdout, stderr = process.communicate(timeout=request.timeout_seconds)
+            except subprocess.TimeoutExpired:
+                self._kill(process)
+                return self._result(
+                    request,
+                    started_at,
+                    utc_now(),
+                    RunStatus.TIMEOUT,
+                    diagnostic=f"spider timed out after {request.timeout_seconds:.0f}s",
+                )
+        finally:
+            with self._condition:
+                self._active_processes.discard(process)
+                self._condition.notify_all()
 
         finished_at = utc_now()
         diagnostic = self._bounded(stderr) or None
@@ -147,6 +203,14 @@ class SpiderRunner:
 
     def _kill(self, process: subprocess.Popen) -> None:
         """Best-effort termination of the child and, on POSIX, its group."""
+        self._signal_kill(process)
+        try:
+            process.communicate(timeout=_KILL_GRACE_SECONDS)
+        except (subprocess.TimeoutExpired, ValueError):
+            pass
+
+    @staticmethod
+    def _signal_kill(process: subprocess.Popen) -> None:
         if os.name == "posix":
             try:
                 os.killpg(os.getpgid(process.pid), signal.SIGKILL)
@@ -157,10 +221,6 @@ class SpiderRunner:
                 process.kill()
             except OSError:
                 pass
-        try:
-            process.communicate(timeout=_KILL_GRACE_SECONDS)
-        except (subprocess.TimeoutExpired, ValueError):
-            pass
 
     def _bounded(self, text: str | None) -> str:
         if not text:

@@ -6,6 +6,19 @@ from scrapyrealestate.persistence.database import Database
 from scrapyrealestate.runtime import RuntimePaths
 
 
+class ImmediateServer:
+    def __init__(self, callback=None):
+        self.callback = callback
+        self.shutdown_requested = False
+
+    def serve(self, app):
+        if self.callback is not None:
+            self.callback(app)
+
+    def request_shutdown(self):
+        self.shutdown_requested = True
+
+
 def test_bootstrap_starts_web_and_scheduler_without_legacy_config(tmp_path: Path):
     paths = RuntimePaths((tmp_path / "data").resolve())
     runtime = build_application(runtime_paths=paths)
@@ -17,9 +30,11 @@ def test_bootstrap_starts_web_and_scheduler_without_legacy_config(tmp_path: Path
         assert client.get("/healthz").status_code == 200
         assert client.get("/readyz").status_code == 200
 
-    runtime.run(serve)
+    server = ImmediateServer(serve)
+    runtime.run(server)
 
     assert observations == [True]
+    assert server.shutdown_requested is True
     assert runtime.scheduler.is_running is False
     assert paths.database_file.exists()
     assert not paths.config_file.exists()
@@ -47,10 +62,10 @@ def test_bootstrap_imports_each_preserved_legacy_source_only_once(tmp_path: Path
 
     first = build_application(runtime_paths=paths)
     first_report = first.report
-    first.close()
+    assert first.close()
     second = build_application(runtime_paths=paths)
     second_report = second.report
-    second.close()
+    assert second.close()
 
     assert first_report.config_imported is True
     assert first_report.ids_imported is True

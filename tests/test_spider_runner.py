@@ -1,4 +1,5 @@
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -132,3 +133,34 @@ def test_timeout_is_recorded_and_the_child_is_killed(tmp_path):
     assert elapsed < 4  # well under the fake spider's 5s sleep
     time.sleep(1)  # give a leaked process a chance to finish, if it wasn't killed
     assert not marker.exists()
+
+
+def test_shutdown_drains_then_kills_an_active_child_and_rejects_new_runs(tmp_path):
+    marker = tmp_path / "shutdown-marker.txt"
+    runner = SpiderRunner(working_directory=tmp_path, build_command=_fake_command("hang"))
+    request = PortalRunRequest(
+        portal=PortalKey.PISOSCOM,
+        spider_name="pisoscom",
+        start_url="https://www.pisos.com/venta/pisos-madrid/",
+        transaction_type=TransactionType.BUY,
+        output_path=marker,
+        timeout_seconds=30,
+    )
+    results = []
+    worker = threading.Thread(target=lambda: results.append(runner.run(request)))
+    worker.start()
+    deadline = time.monotonic() + 2
+    while runner.active_process_count == 0 and time.monotonic() < deadline:
+        time.sleep(0.01)
+
+    assert runner.active_process_count == 1
+    assert runner.shutdown(grace_seconds=0.05)
+    worker.join(1)
+
+    assert not worker.is_alive()
+    assert results[0].status is RunStatus.TRANSPORT_ERROR
+    assert runner.active_process_count == 0
+    assert not marker.exists()
+    rejected = runner.run(_request(tmp_path))
+    assert rejected.status is RunStatus.UNAVAILABLE
+    assert rejected.diagnostic == "spider runner is shutting down"

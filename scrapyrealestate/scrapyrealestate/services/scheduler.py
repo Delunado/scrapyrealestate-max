@@ -104,9 +104,8 @@ class InProcessScheduler:
 
     def stop(self, timeout: float | None = None) -> bool:
         """Wake the scheduler, request a stop, and report whether it exited."""
+        self.request_stop()
         with self._condition:
-            self._stop_requested = True
-            self._condition.notify_all()
             thread = self._thread
         if thread is None:
             return True
@@ -114,6 +113,12 @@ class InProcessScheduler:
             return False
         thread.join(timeout)
         return not thread.is_alive()
+
+    def request_stop(self) -> None:
+        """Stop accepting new dispatches and wake the worker without joining it."""
+        with self._condition:
+            self._stop_requested = True
+            self._condition.notify_all()
 
     def notify_schedule_changed(self) -> None:
         """Reload enabled searches and recompute deadlines without polling."""
@@ -171,6 +176,8 @@ class InProcessScheduler:
         completed = []
         for search_id in due_ids:
             with self._condition:
+                if self._stop_requested:
+                    break
                 entry = self._entries.get(search_id)
                 if entry is None or entry.next_run_at > now:
                     continue

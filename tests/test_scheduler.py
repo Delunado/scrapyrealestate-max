@@ -284,6 +284,7 @@ def test_clean_stop_waits_for_an_active_dispatch_to_finish():
 
     assert scheduler.stop(timeout=1) is True
     assert scheduler.is_running is False
+    assert [call[0] for call in executor.calls] == [1]
 
 
 def test_clean_stop_wakes_an_idle_scheduler():
