@@ -29,7 +29,9 @@ infrastructure without a concrete requirement and an explicit update to
   mapper, and explicit three-state local filter evaluation. The legacy runtime does
   not consume this boundary yet.
 - `scrapyrealestate/scrapyrealestate/persistence/`: configured SQLite connections,
-  explicit transactions, and the ordered migration infrastructure/schema.
+  explicit transactions, ordered migrations, typed repositories for searches,
+  listings, prices, runs, and notifications, plus idempotent legacy importers and
+  secret-free migration reports.
 - `scrapyrealestate/scrapyrealestate/spiders/`: one spider module per portal plus
   the optional Idealista proxy variant.
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: current first-run-only Flask
@@ -115,6 +117,12 @@ SQLite database and any non-database runtime files, mounted into Docker. Resolve
 through one path/configuration module rather than adding new `./data` literals.
 SQLite changes must use ordered, transactional, forward-only migrations tracked in
 the database; never mutate a deployed schema opportunistically at startup.
+
+Legacy imports record SHA-256 rollback-source markers in `legacy_import_reports` and
+leave `config.json` and `ids.json` untouched. `legacy_seen_ids` is intentionally
+portal-unscoped: matching a numeric external ID suppresses a repeat first
+notification conservatively, but never creates a normalized listing or assigns the
+legacy ID to a portal.
 
 ## Spiders and current portal behavior
 

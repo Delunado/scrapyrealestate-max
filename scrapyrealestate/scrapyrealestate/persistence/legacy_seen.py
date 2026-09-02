@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from scrapyrealestate.persistence.database import transaction
+from scrapyrealestate.persistence.import_reports import LegacyImportReportRepository
 
 
 IDS_IMPORT_MARKER = "legacy.ids_import.v1"
@@ -106,6 +107,15 @@ class LegacySeenRepository:
                     timestamp,
                     timestamp,
                 ),
+            )
+            LegacyImportReportRepository(self.connection).record(
+                import_key=IDS_IMPORT_MARKER,
+                source_name=source.name,
+                source_digest=digest,
+                imported_records=imported_count,
+                ignored_records=ignored_count,
+                warnings=warnings,
+                completed_at=timestamp,
             )
         return LegacyIdsImportResult(
             imported=True,

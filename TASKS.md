@@ -64,7 +64,7 @@ than code complexity.
 - [x] **Medium** — Implement notification channel/event/delivery repositories with masked secret reads and retry-safe uniqueness.
 - [x] **Hard** — Build an idempotent legacy importer for `config.json` that creates a named search, portal selections, schedule, filters, and Telegram channel while preserving the source file.
 - [x] **Hard** — Import `ids.json` into a conservative legacy-seen table, document its missing portal scope, and prevent repeat first-run floods without fabricating listing records.
-- [ ] **Easy** — Add a migration report/backup marker and tests proving reruns do not duplicate imported configuration or history.
+- [x] **Easy** — Add a migration report/backup marker and tests proving reruns do not duplicate imported configuration or history.
 
 ## Phase 4 — Portal adapter and registry architecture
 

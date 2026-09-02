@@ -11,6 +11,9 @@ from scrapyrealestate.persistence.migrations.v005_price_history import apply as 
 from scrapyrealestate.persistence.migrations.v006_runs import apply as apply_v006
 from scrapyrealestate.persistence.migrations.v007_notifications import apply as apply_v007
 from scrapyrealestate.persistence.migrations.v008_legacy_seen import apply as apply_v008
+from scrapyrealestate.persistence.migrations.v009_legacy_import_reports import (
+    apply as apply_v009,
+)
 
 
 MIGRATIONS: tuple[Migration, ...] = (
@@ -22,6 +25,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(6, "search_runs_and_portal_attempts", apply_v006),
     Migration(7, "notification_channels_events_deliveries", apply_v007),
     Migration(8, "portal_unscoped_legacy_seen_ids", apply_v008),
+    Migration(9, "legacy_import_reports", apply_v009),
 )
 
 __all__ = ["MIGRATIONS", "Migration", "MigrationRunner"]

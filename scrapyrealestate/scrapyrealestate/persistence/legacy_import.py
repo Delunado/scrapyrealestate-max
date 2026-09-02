@@ -13,6 +13,7 @@ from scrapyrealestate.domain.search import SearchFilters
 from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.legacy_config import LegacyConfig, load_legacy_config
 from scrapyrealestate.persistence.database import transaction
+from scrapyrealestate.persistence.import_reports import LegacyImportReportRepository
 
 
 CONFIG_IMPORT_MARKER = "legacy.config_import.v1"
@@ -123,6 +124,15 @@ class LegacyConfigImporter:
                 "imported_at": timestamp,
             }
             self._store_setting(CONFIG_IMPORT_MARKER, marker, timestamp)
+            LegacyImportReportRepository(self.connection).record(
+                import_key=CONFIG_IMPORT_MARKER,
+                source_name=source.name,
+                source_digest=digest,
+                imported_records=1 + len(portals) + int(channel_id is not None),
+                ignored_records=0,
+                warnings=warnings,
+                completed_at=timestamp,
+            )
 
         return LegacyConfigImportResult(
             imported=True,
