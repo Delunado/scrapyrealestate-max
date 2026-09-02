@@ -9,6 +9,7 @@ from scrapyrealestate.persistence.migrations.v004_search_listing_matches import 
 )
 from scrapyrealestate.persistence.migrations.v005_price_history import apply as apply_v005
 from scrapyrealestate.persistence.migrations.v006_runs import apply as apply_v006
+from scrapyrealestate.persistence.migrations.v007_notifications import apply as apply_v007
 
 
 MIGRATIONS: tuple[Migration, ...] = (
@@ -18,6 +19,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(4, "search_listing_matches", apply_v004),
     Migration(5, "listing_price_history", apply_v005),
     Migration(6, "search_runs_and_portal_attempts", apply_v006),
+    Migration(7, "notification_channels_events_deliveries", apply_v007),
 )
 
 __all__ = ["MIGRATIONS", "Migration", "MigrationRunner"]

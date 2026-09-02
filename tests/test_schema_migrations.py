@@ -401,3 +401,136 @@ def test_search_run_constraints_reject_invalid_state(migrated_connection, statem
     _insert_search(migrated_connection)
     with pytest.raises(sqlite3.IntegrityError):
         migrated_connection.execute(statement)
+
+
+def _insert_channel(connection, name="Telegram"):
+    return connection.execute(
+        """
+        INSERT INTO notification_channels (
+            name, provider, config_json, secret_config_json
+        ) VALUES (?, 'telegram', '{"chat_id": "123"}', '{"bot_token": "secret"}')
+        RETURNING id
+        """,
+        (name,),
+    ).fetchone()[0]
+
+
+def test_notification_channel_can_be_assigned_to_multiple_searches(
+    migrated_connection,
+):
+    channel_id = _insert_channel(migrated_connection)
+    first_search = _insert_search(migrated_connection, "A")
+    second_search = _insert_search(migrated_connection, "B")
+    migrated_connection.executemany(
+        """
+        INSERT INTO search_notification_channels (search_id, channel_id)
+        VALUES (?, ?)
+        """,
+        ((first_search, channel_id), (second_search, channel_id)),
+    )
+
+    assert migrated_connection.execute(
+        "SELECT count(*) FROM search_notification_channels WHERE channel_id = ?",
+        (channel_id,),
+    ).fetchone()[0] == 2
+
+
+def test_provider_neutral_event_has_retry_identified_delivery_attempts(
+    migrated_connection,
+):
+    search_id = _insert_search(migrated_connection)
+    listing_id = _insert_listing(migrated_connection)
+    channel_id = _insert_channel(migrated_connection)
+    event_id = migrated_connection.execute(
+        """
+        INSERT INTO notification_events (
+            search_id, listing_id, event_type, deduplication_key,
+            payload_json, occurred_at
+        ) VALUES (?, ?, 'price_drop', 'price-drop:pisoscom:123:195000',
+                  '{"old_price": 200000, "new_price": 195000}',
+                  '2026-01-01T10:00:00Z')
+        RETURNING id
+        """,
+        (search_id, listing_id),
+    ).fetchone()[0]
+    migrated_connection.executemany(
+        """
+        INSERT INTO notification_delivery_attempts (
+            event_id, channel_id, attempt_number, status, claimed_at,
+            completed_at, error_category, redacted_diagnostic
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            (
+                event_id,
+                channel_id,
+                1,
+                "failed",
+                "2026-01-01T10:01:00Z",
+                "2026-01-01T10:01:01Z",
+                "timeout",
+                "provider timed out",
+            ),
+            (event_id, channel_id, 2, "pending", None, None, None, None),
+        ),
+    )
+
+    attempts = migrated_connection.execute(
+        """
+        SELECT attempt_number, status FROM notification_delivery_attempts
+        ORDER BY attempt_number
+        """
+    ).fetchall()
+    assert [tuple(row) for row in attempts] == [(1, "failed"), (2, "pending")]
+
+    with pytest.raises(sqlite3.IntegrityError):
+        migrated_connection.execute(
+            """
+            INSERT INTO notification_delivery_attempts (
+                event_id, channel_id, attempt_number
+            ) VALUES (?, ?, 2)
+            """,
+            (event_id, channel_id),
+        )
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        """
+        INSERT INTO notification_channels (name, provider)
+        VALUES ('Unknown', 'email')
+        """,
+        """
+        INSERT INTO notification_channels (name, provider, config_json)
+        VALUES ('Bad JSON', 'ntfy', '[]')
+        """,
+    ],
+)
+def test_notification_channel_constraints_reject_invalid_values(
+    migrated_connection, statement
+):
+    with pytest.raises(sqlite3.IntegrityError):
+        migrated_connection.execute(statement)
+
+
+def test_notification_event_deduplication_key_is_unique(migrated_connection):
+    search_id = _insert_search(migrated_connection)
+    values = (search_id, "new-listing:pisoscom:123", "2026-01-01T10:00:00Z")
+    migrated_connection.execute(
+        """
+        INSERT INTO notification_events (
+            search_id, event_type, deduplication_key, occurred_at
+        ) VALUES (?, 'new_listing', ?, ?)
+        """,
+        values,
+    )
+    with pytest.raises(sqlite3.IntegrityError):
+        migrated_connection.execute(
+            """
+            INSERT INTO notification_events (
+                search_id, event_type, deduplication_key, occurred_at
+            ) VALUES (?, 'new_listing', ?, ?)
+            """,
+            values,
+        )
