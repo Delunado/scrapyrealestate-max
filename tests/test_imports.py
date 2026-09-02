@@ -10,6 +10,7 @@ APPLICATION_MODULES = (
     "scrapyrealestate.items",
     "scrapyrealestate.legacy_config",
     "scrapyrealestate.notifiers",
+    "scrapyrealestate.notifiers.telegram",
     "scrapyrealestate.proxies",
     "scrapyrealestate.settings",
     "scrapyrealestate.security",

@@ -8,6 +8,10 @@ from typing import Protocol
 from scrapyrealestate.domain.notification import NotificationEvent
 
 
+class NotifierConfigurationError(ValueError):
+    """A channel cannot be constructed from its user-supplied configuration."""
+
+
 @dataclass(frozen=True, slots=True)
 class DeliveryResult:
     """A notifier outcome that can be persisted without raising provider errors."""
@@ -37,4 +41,3 @@ class Notifier(Protocol):
 
     def send(self, event: NotificationEvent) -> DeliveryResult:
         """Deliver one event and return a classified, non-secret outcome."""
-

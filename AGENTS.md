@@ -122,7 +122,9 @@ infrastructure without a concrete requirement and an explicit update to
   parsing for listing-supplied text. `domain.notification.NotificationPreferences`
   enables new-listing and price-drop events by default; overrides for all four event
   types are stored per search in `search_notification_preferences` and applied by
-  `NotificationRepository.select_enabled_events`.
+  `NotificationRepository.select_enabled_events`. `notifiers/telegram.py` sends
+  that shared plain text through a user-configured bot and chat only; it returns a
+  classified `DeliveryResult` and never exposes provider exception text.
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: current first-run-only Flask
   server. It writes `data/config.json`; `main.py` then terminates it.
 - `scrapyrealestate/scrapyrealestate/templates/`: current unstyled first-run form
