@@ -110,7 +110,7 @@ than code complexity.
 
 ## Phase 7 — Persistent application and scheduler lifecycle
 
-- [ ] **Medium** — Refactor Flask into an application factory with injected repositories/services and persistent availability independent of first-run configuration.
+- [x] **Medium** — Refactor Flask into an application factory with injected repositories/services and persistent availability independent of first-run configuration.
 - [ ] **Easy** — Add `/healthz` liveness and `/readyz` readiness endpoints that do not disclose secrets or depend on unreliable portals.
 - [ ] **Medium** — Implement a lightweight in-process scheduler that loads enabled searches, computes UTC next-run times, and reacts to schedule changes without polling aggressively.
 - [ ] **Medium** — Persist scheduler activity and next-run state, and recover cleanly after process restarts or a missed interval.

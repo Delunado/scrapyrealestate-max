@@ -17,11 +17,11 @@ def test_main_loads_config_from_runtime_paths(tmp_path: Path, monkeypatch):
     assert main.data.scrapy_rs_name == "configured"
 
 
-def test_first_run_form_writes_config_to_runtime_paths(tmp_path: Path, monkeypatch):
+def test_first_run_form_writes_config_to_runtime_paths(tmp_path: Path):
     paths = RuntimePaths((tmp_path / "runtime-data").resolve())
-    monkeypatch.setattr(flask_server, "runtime_paths", paths)
+    app = flask_server.create_app(runtime_paths=paths, config={"TESTING": True})
 
-    response = flask_server.app.test_client().post(
+    response = app.test_client().post(
         "/data",
         data={
             "scrapy_rs_name": "configured",

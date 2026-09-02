@@ -149,8 +149,11 @@ infrastructure without a concrete requirement and an explicit update to
   transaction as each new event. `SearchOrchestrationService` then drains durable
   attempts through the provider registry after conclusive ingestion; delivery
   failures are retained for retry but never change portal or search-run status.
-- `scrapyrealestate/scrapyrealestate/flask_server.py`: current first-run-only Flask
-  server. It writes `data/config.json`; `main.py` then terminates it.
+- `scrapyrealestate/scrapyrealestate/flask_server.py`: Flask application factory
+  with per-application runtime paths and injected repository/service containers.
+  The factory remains available independently of `config.json`; during the
+  transition, its legacy form still writes `data/config.json` and `main.py` still
+  launches and terminates the direct-script server around first-run configuration.
 - `scrapyrealestate/scrapyrealestate/templates/`: current unstyled first-run form
   and confirmation page.
 - `scrapyrealestate/scrapyrealestate/proxies.py`: downloads public HTTPS proxies
