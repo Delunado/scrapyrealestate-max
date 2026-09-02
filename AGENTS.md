@@ -115,6 +115,11 @@ infrastructure without a concrete requirement and an explicit update to
   attempted portal was conclusive (`success`/`empty`), `PARTIAL` when only
   some were, `FAILED` when none were conclusive or no portal was enabled at
   all — this status reflects portal fetch outcomes only, not ingestion.
+- `scrapyrealestate/scrapyrealestate/notifiers/`: provider implementations share
+  the synchronous `Notifier`/`DeliveryResult` boundary and the bounded plain-text
+  formatter. `domain.notification.NotificationEvent` is the provider-neutral read
+  model for all four event types; notifier adapters must not enable HTML/Markdown
+  parsing for listing-supplied text.
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: current first-run-only Flask
   server. It writes `data/config.json`; `main.py` then terminates it.
 - `scrapyrealestate/scrapyrealestate/templates/`: current unstyled first-run form

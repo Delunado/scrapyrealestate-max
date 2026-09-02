@@ -9,6 +9,7 @@ APPLICATION_MODULES = (
     "scrapyrealestate.flask_server",
     "scrapyrealestate.items",
     "scrapyrealestate.legacy_config",
+    "scrapyrealestate.notifiers",
     "scrapyrealestate.proxies",
     "scrapyrealestate.settings",
     "scrapyrealestate.security",

@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from enum import StrEnum
 from typing import Any
 
+from scrapyrealestate.domain.notification import NotificationEventType
 from scrapyrealestate.persistence.database import transaction
 
 
@@ -19,13 +20,6 @@ class NotificationProvider(StrEnum):
     TELEGRAM = "telegram"
     NTFY = "ntfy"
     WEBHOOK = "webhook"
-
-
-class NotificationEventType(StrEnum):
-    NEW_LISTING = "new_listing"
-    PRICE_DROP = "price_drop"
-    PRICE_INCREASE = "price_increase"
-    REAPPEARANCE = "reappearance"
 
 
 class DeliveryStatus(StrEnum):
