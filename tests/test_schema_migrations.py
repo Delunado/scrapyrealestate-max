@@ -184,3 +184,52 @@ def test_listing_constraints_reject_invalid_records(migrated_connection, values)
     external_id = values.pop("external_id", "123")
     with pytest.raises(sqlite3.IntegrityError):
         _insert_listing(migrated_connection, external_id=external_id, **values)
+
+
+def test_listing_can_match_many_searches_with_independent_seen_times(
+    migrated_connection,
+):
+    first_search = migrated_connection.execute(
+        "INSERT INTO searches (name, transaction_type) VALUES ('A', 'buy') RETURNING id"
+    ).fetchone()[0]
+    second_search = migrated_connection.execute(
+        "INSERT INTO searches (name, transaction_type) VALUES ('B', 'buy') RETURNING id"
+    ).fetchone()[0]
+    listing_id = _insert_listing(migrated_connection)
+
+    for search_id, first_seen in (
+        (first_search, "2026-01-01T10:00:00Z"),
+        (second_search, "2026-01-02T10:00:00Z"),
+    ):
+        migrated_connection.execute(
+            """
+            INSERT INTO search_listing_matches (
+                search_id, listing_id, first_seen_at, last_seen_at
+            ) VALUES (?, ?, ?, ?)
+            """,
+            (search_id, listing_id, first_seen, "2026-01-03T10:00:00Z"),
+        )
+
+    rows = migrated_connection.execute(
+        "SELECT * FROM search_listing_matches ORDER BY search_id"
+    ).fetchall()
+    assert len(rows) == 2
+    assert rows[0]["first_seen_at"] != rows[1]["first_seen_at"]
+    assert all(row["active"] == 1 for row in rows)
+
+
+def test_search_listing_match_enforces_identity_and_seen_order(migrated_connection):
+    search_id = migrated_connection.execute(
+        "INSERT INTO searches (name, transaction_type) VALUES ('A', 'buy') RETURNING id"
+    ).fetchone()[0]
+    listing_id = _insert_listing(migrated_connection)
+
+    with pytest.raises(sqlite3.IntegrityError):
+        migrated_connection.execute(
+            """
+            INSERT INTO search_listing_matches (
+                search_id, listing_id, first_seen_at, last_seen_at
+            ) VALUES (?, ?, '2026-01-02T10:00:00Z', '2026-01-01T10:00:00Z')
+            """,
+            (search_id, listing_id),
+        )
