@@ -72,7 +72,7 @@ than code complexity.
 - [x] **Medium** — Implement a registry with duplicate-key/domain validation and lookup by stable portal key or normalized hostname.
 - [x] **Medium** — Add the Pisos.com adapter around the existing spider, including URL validation, recent-sort construction, metadata, and contract tests.
 - [x] **Medium** — Add the Habitaclia adapter around the existing spider, including URL validation, recent-sort construction, metadata, and contract tests.
-- [ ] **Medium** — Add the Fotocasa adapter around the existing Playwright spider, including embedded-JSON expectations, metadata, and contract tests.
+- [x] **Medium** — Add the Fotocasa adapter around the existing Playwright spider, including embedded-JSON expectations, metadata, and contract tests.
 - [ ] **Medium** — Add the Yaencontre adapter around the existing Playwright spider, including rendered-card expectations, metadata, and contract tests.
 - [ ] **Externally unreliable** — Add the Idealista adapter and optional proxy transport metadata with a default degraded/unreliable status and no promise of anti-bot bypass.
 - [ ] **Medium** — Replace domain parsing and the central portal `if/elif` dispatcher with registry lookup while keeping legacy raw URLs working.
