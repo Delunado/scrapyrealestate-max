@@ -1,6 +1,10 @@
+from urllib.parse import urljoin
+
 import scrapy
-from scrapy.spiders import CrawlSpider
 from bs4 import BeautifulSoup
+from scrapy.spiders import CrawlSpider
+
+from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.items import ScrapyrealestateItem
 
 
@@ -28,23 +32,23 @@ class PisoscomSpider(CrawlSpider):
     }
 
     def parse(self, response):
-        ids = []
-        same_id = False
-        items = ScrapyrealestateItem()
+        ids = set()
         default_url = 'https://pisos.com'
         soup = BeautifulSoup(response.text, 'lxml')
         # Cada vivienda es un div.ad-preview__info.
         flats = soup.find_all("div", {"class": "ad-preview__info"})
 
         # Obtenemos si es alquiler o compra a partir de la url
-        if self.start_urls.split('/')[3] == 'alquiler':
-            type = 'rent'
-        elif self.start_urls.split('/')[3] == 'venta':
-            type = 'buy'
+        path_section = self.start_urls.split('/')[3]
+        if path_section == 'alquiler':
+            transaction_type = TransactionType.RENT
+        elif path_section == 'venta':
+            transaction_type = TransactionType.BUY
+        else:
+            return
 
         # Iteramos por cada vivienda y extraemos sus datos.
         for nflat in range(len(flats)):
-            same_id = False
             title_el = flats[nflat].find(class_="ad-preview__title")
             if title_el is None or not title_el.get('href'):
                 continue  # tarjeta sin enlace (p. ej. promo): la saltamos
@@ -100,14 +104,9 @@ class PisoscomSpider(CrawlSpider):
                 pass
 
             try:
-                id = href.split('-')[2].split('_')[0]
-                # Si el id ya estaba en la lista, salimos
-                for id_ in ids:
-                    if id_ == id:
-                        same_id = True
-                        break
+                listing_id = href.split('-')[2].split('_')[0]
             except IndexError:
-                id = ''
+                listing_id = ''
 
             price_el = flats[nflat].find("span", {"class": "ad-preview__price"})
             price = price_el.text.strip() if price_el else ''
@@ -126,10 +125,11 @@ class PisoscomSpider(CrawlSpider):
                     floor = t
 
             # Si esta activado, pasamos al siguiente ya que repite ids
-            if same_id:
+            if listing_id and listing_id in ids:
                 continue
             else:
-                items['id'] = id
+                items = ScrapyrealestateItem()
+                items['id'] = listing_id
                 items['price'] = price
                 items['m2'] = m2
                 items['rooms'] = rooms
@@ -138,11 +138,12 @@ class PisoscomSpider(CrawlSpider):
                 items['neighbour'] = neighbour
                 items['street'] = street
                 items['number'] = number
-                items['type'] = type
+                items['type'] = transaction_type.value
                 items['title'] = title
-                items['href'] = default_url + href
-                items['site'] = 'pisoscom'
-                ids.append(id)
+                items['href'] = urljoin(default_url, href)
+                items['site'] = PortalKey.PISOSCOM.value
+                if listing_id:
+                    ids.add(listing_id)
 
                 yield items
 

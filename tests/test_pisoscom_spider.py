@@ -1,5 +1,7 @@
 from scrapy.http import HtmlResponse, Request
 
+from scrapyrealestate.domain.legacy_mapper import map_legacy_item
+from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.spiders.pisoscom_spider import PisoscomSpider
 
 
@@ -58,3 +60,18 @@ def test_parse_pisoscom_missing_fields_and_non_listings(load_fixture):
         "site": "pisoscom",
     }
 
+
+def test_every_pisoscom_result_satisfies_normalized_boundary(load_fixture):
+    normalized = [
+        map_legacy_item(item)
+        for item in parse_fixture(load_fixture("pisoscom/search_results.html"))
+    ]
+
+    assert all(listing.portal is PortalKey.PISOSCOM for listing in normalized)
+    assert all(listing.transaction_type is TransactionType.BUY for listing in normalized)
+    assert normalized[0].external_id == "12345678901"
+    assert normalized[0].price_euros == 325_000
+    assert normalized[0].area_sqm == 92
+    assert normalized[0].rooms == 3
+    assert normalized[0].floor == 2
+    assert normalized[1].price_euros is None
