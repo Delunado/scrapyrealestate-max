@@ -14,11 +14,14 @@ from scrapyrealestate.execution.contract import (
     PortalRunRequest,
     PortalRunResult,
 )
+from scrapyrealestate.execution.output import OutputDecodeError, read_jsonl_items
 
 __all__ = [
     "CONCLUSIVE_STATUSES",
     "DEFAULT_LOG_LEVEL",
     "DEFAULT_TIMEOUT_SECONDS",
+    "OutputDecodeError",
     "PortalRunRequest",
     "PortalRunResult",
+    "read_jsonl_items",
 ]

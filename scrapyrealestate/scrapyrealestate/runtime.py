@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
+from uuid import uuid4
 
 
 DATA_DIR_ENV = "SCRAPYREALESTATE_DATA_DIR"
+_UNSAFE_LABEL_CHARS = re.compile(r"[^A-Za-z0-9_.-]+")
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +66,24 @@ class RuntimePaths:
     def ensure_data_dir(self) -> Path:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         return self.data_dir
+
+    def ensure_run_output_dir(self) -> Path:
+        directory = self.data_dir / "runs"
+        directory.mkdir(parents=True, exist_ok=True)
+        return directory
+
+    def attempt_output(self, label: str) -> Path:
+        """Return a unique JSON Lines output path for one portal attempt.
+
+        Every attempt gets its own file (under ``runs/``) rather than
+        sharing one aggregate crawl file across the whole search: isolated
+        attempts can be decoded strictly (see ``execution.output``) without
+        ever needing the legacy concatenated-JSON-array repair step, and one
+        attempt's malformed output can never corrupt another's.
+        """
+        directory = self.ensure_run_output_dir()
+        safe_label = _UNSAFE_LABEL_CHARS.sub("-", label.strip()).strip("-") or "attempt"
+        return directory / f"{safe_label}-{uuid4().hex}.jl"
 
 
 def get_runtime_paths() -> RuntimePaths:

@@ -46,6 +46,14 @@ infrastructure without a concrete requirement and an explicit update to
   outcome, typed against `domain.values.RunStatus`: `success`, `empty`,
   `timeout`, `transport_error`, `parser_error`, `blocked`, `unavailable`); a
   non-conclusive result — anything but `success`/`empty` — cannot carry items.
+  `execution/output.py` strictly decodes one attempt's JSON Lines output
+  (`OutputDecodeError` on a malformed or non-object line; a missing file is
+  a legitimate empty result). `RuntimePaths.attempt_output(label)`
+  (`runtime.py`) hands out a unique `data/runs/<label>-<uuid>.jl` path per
+  attempt, so — once wired into the runner — every attempt writes its own
+  file and the legacy concatenated-JSON-array repair step
+  (`main.scrap_realestate`'s `\n][` -> `,` patch) becomes unnecessary rather
+  than needing a stricter parser for the same shared-file shape.
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: current first-run-only Flask
   server. It writes `data/config.json`; `main.py` then terminates it.
 - `scrapyrealestate/scrapyrealestate/templates/`: current unstyled first-run form

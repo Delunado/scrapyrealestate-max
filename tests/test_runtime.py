@@ -37,3 +37,34 @@ def test_runtime_paths_create_configured_directory(tmp_path: Path):
 
     assert paths.ensure_data_dir() == data_dir
     assert data_dir.is_dir()
+
+
+def test_attempt_output_paths_are_unique_json_lines_files_under_runs(tmp_path: Path):
+    paths = RuntimePaths(tmp_path / "data")
+
+    first = paths.attempt_output("pisoscom")
+    second = paths.attempt_output("pisoscom")
+
+    assert first != second
+    assert first.parent == second.parent == paths.data_dir / "runs"
+    assert first.parent.is_dir()
+    assert first.suffix == ".jl"
+    assert first.name.startswith("pisoscom-")
+    assert second.name.startswith("pisoscom-")
+
+
+def test_attempt_output_sanitizes_unsafe_label_characters(tmp_path: Path):
+    paths = RuntimePaths(tmp_path / "data")
+
+    path = paths.attempt_output("search 7 / idealista?proxy=true")
+
+    assert path.name.startswith("search-7-idealista-proxy-true-")
+    assert path.parent.is_dir()
+
+
+def test_attempt_output_falls_back_to_a_default_label(tmp_path: Path):
+    paths = RuntimePaths(tmp_path / "data")
+
+    path = paths.attempt_output("   ")
+
+    assert path.name.startswith("attempt-")
