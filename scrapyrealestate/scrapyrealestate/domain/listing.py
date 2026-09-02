@@ -3,6 +3,7 @@
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from math import isfinite
 from types import MappingProxyType
 from typing import Any
 from urllib.parse import SplitResult, urlsplit, urlunsplit
@@ -95,6 +96,11 @@ class NormalizedListing:
             raise TypeError("portal must be a PortalKey")
         if not isinstance(self.transaction_type, TransactionType):
             raise TypeError("transaction_type must be a TransactionType")
+        if not isinstance(self.property_type, PropertyType):
+            raise TypeError("property_type must be a PropertyType")
+        for field_name in ("elevator", "terrace", "garage"):
+            if not isinstance(getattr(self, field_name), TriState):
+                raise TypeError(f"{field_name} must be a TriState")
 
         title = self.title.strip()
         if not title:
@@ -110,12 +116,19 @@ class NormalizedListing:
         object.__setattr__(self, "external_id", external_id)
         object.__setattr__(self, "canonical_url", canonical_url)
 
+        for field_name in ("price_euros", "rooms", "bathrooms", "floor"):
+            value = getattr(self, field_name)
+            if value is not None and (isinstance(value, bool) or not isinstance(value, int)):
+                raise TypeError(f"{field_name} must be an integer or None")
         for field_name in ("price_euros", "rooms", "bathrooms"):
             value = getattr(self, field_name)
             if value is not None and value < 0:
                 raise ValueError(f"{field_name} cannot be negative")
-        if self.area_sqm is not None and self.area_sqm <= 0:
-            raise ValueError("area_sqm must be positive")
+        if self.area_sqm is not None:
+            if isinstance(self.area_sqm, bool) or not isinstance(self.area_sqm, (int, float)):
+                raise TypeError("area_sqm must be numeric or None")
+            if not isfinite(self.area_sqm) or self.area_sqm <= 0:
+                raise ValueError("area_sqm must be positive")
 
         for field_name in ("location", "neighbourhood", "street", "street_number"):
             object.__setattr__(self, field_name, _optional_text(getattr(self, field_name)))

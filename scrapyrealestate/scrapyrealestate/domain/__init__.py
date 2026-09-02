@@ -1,5 +1,11 @@
 """Normalized domain types shared by scraping, persistence, and services."""
 
+from scrapyrealestate.domain.filtering import (
+    FilterEvaluation,
+    FilterOutcome,
+    evaluate_filters,
+    evaluate_listing,
+)
 from scrapyrealestate.domain.listing import NormalizedListing, canonicalize_url
 from scrapyrealestate.domain.legacy_mapper import LegacyItemMappingError, map_legacy_item
 from scrapyrealestate.domain.normalization import (
@@ -20,6 +26,8 @@ from scrapyrealestate.domain.values import (
 )
 
 __all__ = [
+    "FilterEvaluation",
+    "FilterOutcome",
     "LegacyItemMappingError",
     "NormalizedListing",
     "NormalizedSearch",
@@ -30,6 +38,8 @@ __all__ = [
     "TransactionType",
     "TriState",
     "canonicalize_url",
+    "evaluate_filters",
+    "evaluate_listing",
     "map_legacy_item",
     "normalize_area_sqm",
     "normalize_count",

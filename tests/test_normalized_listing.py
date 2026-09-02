@@ -80,3 +80,25 @@ def test_listing_calculates_price_per_square_metre():
     )
 
     assert listing.price_per_sqm == 3000
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value", "error_type"),
+    [
+        ("price_euros", True, TypeError),
+        ("rooms", 2.5, TypeError),
+        ("area_sqm", float("nan"), ValueError),
+        ("elevator", True, TypeError),
+    ],
+)
+def test_listing_rejects_values_outside_the_typed_contract(field_name, value, error_type):
+    values = {
+        "portal": PortalKey.PISOSCOM,
+        "transaction_type": TransactionType.BUY,
+        "title": "Piso",
+        "external_id": "1",
+        field_name: value,
+    }
+
+    with pytest.raises(error_type):
+        NormalizedListing(**values)

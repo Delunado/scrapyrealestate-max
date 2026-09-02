@@ -24,6 +24,10 @@ infrastructure without a concrete requirement and an explicit update to
 - `scrapyrealestate/scrapyrealestate/settings.py`: shared Scrapy and Playwright
   configuration. It reads the current User-Agent from `./data/useragent.txt`.
 - `scrapyrealestate/scrapyrealestate/items.py`: current loose Scrapy item contract.
+- `scrapyrealestate/scrapyrealestate/domain/`: normalized value enums, listing and
+  search models, Spanish display-value normalization, the transitional legacy item
+  mapper, and explicit three-state local filter evaluation. The legacy runtime does
+  not consume this boundary yet.
 - `scrapyrealestate/scrapyrealestate/spiders/`: one spider module per portal plus
   the optional Idealista proxy variant.
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: current first-run-only Flask
@@ -141,6 +145,15 @@ be typed and nullable; original/raw values may be retained for diagnostics. Mone
 uses integer euros and area uses square metres. Empty strings are not domain-level
 null values. A portal plus external ID is the preferred identity; canonical URL is
 the fallback. Validate this contract at the spider/adapter boundary.
+
+The initial contract is implemented in `domain/`. `NormalizedListing` requires a
+typed portal and transaction, a non-empty title, and either an external ID or an
+absolute HTTP(S) canonical URL. It stores aware timestamps in UTC, preserves legacy
+source values as read-only diagnostics, and represents unknown amenities with
+`TriState.UNKNOWN`. `SearchFilters` keeps absent constraints as `None`; local
+evaluation reports `match`, `no_match`, or `unknown` per active filter and gives a
+definite non-match precedence over unknown fields. Use `map_legacy_item` while
+spiders still emit `ScrapyrealestateItem`.
 
 ## Portal adapter conventions
 
