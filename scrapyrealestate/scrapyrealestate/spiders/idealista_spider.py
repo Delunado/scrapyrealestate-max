@@ -1,9 +1,49 @@
 import logging
+import re
+from urllib.parse import urljoin
 
 import scrapy
 from bs4 import BeautifulSoup
-from scrapyrealestate.items import ScrapyrealestateItem
 from scrapy_playwright.page import PageMethod
+
+from scrapyrealestate.domain.values import PortalKey, TransactionType
+from scrapyrealestate.items import ScrapyrealestateItem
+
+
+def _transaction_type(start_url: str) -> TransactionType | None:
+    path_section = start_url.split("/")[3].split("-")[0]
+    if path_section == "alquiler":
+        return TransactionType.RENT
+    if path_section == "venta":
+        return TransactionType.BUY
+    return None
+
+
+def _listing_id(href: str) -> str:
+    match = re.search(r"/inmueble/([^/?#]+)", href)
+    return match.group(1) if match else ""
+
+
+def _location_parts(title: str) -> tuple[str, str, str, str]:
+    parts = [part.strip() for part in title.split(",")]
+    town = neighbourhood = street = number = ""
+    if len(parts) == 4:
+        street = parts[0].split(" en ")[-1]
+        number = parts[1]
+        neighbourhood = parts[2]
+        town = parts[3]
+    elif len(parts) == 3:
+        street = parts[0].split(" en ")[-1]
+        neighbourhood = parts[1]
+        town = parts[2]
+    elif len(parts) == 2:
+        neighbourhood = parts[0].split(" en ")[-1]
+        town = parts[1]
+    if " / " in town:
+        town = town.split(" / ", 1)[1]
+    elif "-" in town:
+        town = town.split("-", 1)[0].strip()
+    return town, neighbourhood, street, number
 
 
 class IdealistaSpider(scrapy.Spider):
@@ -11,164 +51,88 @@ class IdealistaSpider(scrapy.Spider):
     allowed_domains = ["idealista.com"]
 
     def start_requests(self):
-        # DataDome puede tardar; damos margen al wait_for_selector y capturamos el
-        # fallo con errback (un try/except no atrapa los errores async de Playwright).
+        # DataDome can delay or block the result page, so the asynchronous
+        # Playwright failure is handled through the request errback.
         yield scrapy.Request(
-            f'{self.start_urls}',
+            f"{self.start_urls}",
             meta={
-                'playwright': True,
-                'playwright_page_methods': [
-                    PageMethod("wait_for_selector", 'main.listing-items', timeout=45000),
+                "playwright": True,
+                "playwright_page_methods": [
+                    PageMethod("wait_for_selector", "main.listing-items", timeout=45000),
                 ],
             },
             errback=self.on_error,
         )
 
     def on_error(self, failure):
-        logging.error(f'Error al obtener datos de idealista.com: {failure.value}')
+        logging.error(f"Error al obtener datos de idealista.com: {failure.value}")
 
     def parse(self, response):
-        ids = []
-        same_id = False
-        items = ScrapyrealestateItem()
-        default_url = 'https://idealista.com'
-        soup = BeautifulSoup(response.text, 'lxml')
-        # Cada vivienda es un div.item-info-container.
+        soup = BeautifulSoup(response.text, "lxml")
         flats = soup.find_all("div", {"class": "item-info-container"})
         if not flats:
             challenge_html = str(soup).lower()
             challenge_markers = (
-                'datadome',
-                'captcha-delivery.com',
-                'captcha',
-                'access denied',
+                "datadome",
+                "captcha-delivery.com",
+                "captcha",
+                "access denied",
             )
             if any(marker in challenge_html for marker in challenge_markers):
                 logging.warning(
-                    'IDEALISTA: respuesta de desafío detectada '
-                    '(posible bloqueo anti-bot)'
+                    "IDEALISTA: respuesta de desafío detectada "
+                    "(posible bloqueo anti-bot)"
                 )
-        # Obtenemos si es alquiler o compra a partir de la url
-        if self.start_urls.split('/')[3].split('-')[0] == 'alquiler':
-            type = 'rent'
-        elif self.start_urls.split('/')[3].split('-')[0] == 'venta':
-            type = 'buy'
 
-        # Iteramos por cada vivienda de la página y cogemos los datos
-        for nflat in range(len(flats)):
-            # Cogemos href, title, price, details
-            href = flats[nflat].find(class_="item-link")['href']
-            title = flats[nflat].find(class_="item-link").text.strip()
-            # Intentamos coger ciudad, barrio y calle
-            # En idealista puede haber 4 tipos de título, de los que obtendremos estos datos
-            neighbour = ''
-            street = ''
-            number = ''
-            town = ''
-            # Piso en Calle de Alcalá, 12, Goya, Madrid (4)
-            if len(title.split(',')) == 4:
-                town = title.split(',')[-1]
-                number = title.split(',')[1]
-                neighbour = title.split(',')[2]
-                street = title.split(',')[0].split(' en ')[-1]
-            # Piso en Calle de Alcalá, Goya, Madrid (3)
-            elif len(title.split(',')) == 3:
-                town = title.split(',')[-1]
-                neighbour = title.split(',')[1]
-                street = title.split(',')[0].split(' en ')[-1]
-            # Ático en Centro, Madrid (2)
-            elif len(title.split(',')) == 2:
-                town = title.split(',')[-1]
-                neighbour = title.split(',')[0].split(' en ')[-1]
-            else:
-                street = ''
-                neighbour = ''
-                if len(town) > 12:
-                    town = town.split(' en ')[-1]
-                if town[:1] == ' ':
-                    town = town[1:]
-            try:
-                if town[0] == ' ':
-                    town = town[1:]
-            except IndexError:
-                pass
+        transaction_type = _transaction_type(self.start_urls)
+        if transaction_type is None:
+            return
+        portal = PortalKey(self.name)
+        seen_ids: set[str] = set()
 
-            try:
-                if ' / ' in town:
-                    town = town.split(' / ')[1]
-                elif '-' in town:
-                    town = town.split('-')[0]
-            except (IndexError, AttributeError):
-                pass
-
-            try:
-                if neighbour[0] == ' ':
-                    neighbour = neighbour[1:]
-            except IndexError:
-                pass
-            try:
-                if number[0] == ' ':
-                    number = number[1:]
-            except IndexError:
-                pass
-
-            price = flats[nflat].find("span", {"class": "item-price h2-simulated"}).text.strip()
-
-            details = flats[nflat].find_all("span", {"class": "item-detail"})
-            # Cogemos id
-            try:
-                id = href.split('/')[2]
-                # Si el id ya estaba en la lista, salimos
-                for id_ in ids:
-                    if id_ == id:
-                        same_id = True
-                        break
-            except IndexError:
-                id = ''
-
-            # Identificamos cada detalle (habitaciones, m², planta) por su sufijo.
-            for d in details[0:3]:
-                if d.text.strip()[-4:] == 'hab.':
-                    rooms = d.text.strip()
-                    continue
-                elif d.text.strip()[-2:] == 'm²':
-                    m2 = d.text.strip()
-                    continue
-                elif 'Planta' in d.text.strip() or 'Bajo' in d.text.strip() or 'Sótano' in d.text.strip() or 'Entreplanta' in d.text.strip():
-                    floor = d.text.strip()
-                    continue
-                # Hay pisos sin algún dato; lo dejamos vacío para evitar errores.
-                else:
-                    if 'rooms' not in locals():
-                        rooms = ''
-                    if 'm2' not in locals():
-                        m2 = ''
-                    if 'floor' not in locals():
-                        floor = ''
-
-            # Si está activado, pasamos al siguiente ya que repite ids
-            if same_id:
+        for flat in flats:
+            link = flat.find(class_="item-link", href=True)
+            if link is None:
                 continue
-            else:
-                items['id'] = id
-                items['price'] = price
-                items['m2'] = m2
-                items['rooms'] = rooms
-                try:
-                    items['floor'] = floor  # si no, falla en sitios sin pisos (p.ej. cerdaña francesa)
-                except NameError:
-                    items['floor'] = ''
-                items['town'] = town
-                items['neighbour'] = neighbour
-                items['street'] = street
-                items['number'] = number
-                items['type'] = type
-                items['title'] = title
-                items['href'] = default_url + href
-                items['site'] = 'idealista'
-                ids.append(id)
+            href = link["href"]
+            title = link.get_text(strip=True)
+            if not title:
+                continue
 
-                yield items
+            listing_id = _listing_id(href)
+            if listing_id and listing_id in seen_ids:
+                continue
 
-    # Procesamos también la primera página (no solo las paginadas).
+            town, neighbourhood, street, number = _location_parts(title)
+            price_element = flat.find("span", {"class": "item-price h2-simulated"})
+            price = price_element.get_text(strip=True) if price_element else ""
+            rooms = area = floor = ""
+            for detail in flat.find_all("span", {"class": "item-detail"}):
+                value = detail.get_text(strip=True)
+                folded = value.casefold()
+                if "hab." in folded:
+                    rooms = value
+                elif "m²" in folded or "m2" in folded:
+                    area = value
+                elif any(label in folded for label in ("planta", "bajo", "sótano", "entreplanta")):
+                    floor = value
+
+            item = ScrapyrealestateItem()
+            item["id"] = listing_id
+            item["price"] = price
+            item["m2"] = area
+            item["rooms"] = rooms
+            item["floor"] = floor
+            item["town"] = town
+            item["neighbour"] = neighbourhood
+            item["street"] = street
+            item["number"] = number
+            item["type"] = transaction_type.value
+            item["title"] = title
+            item["href"] = urljoin("https://www.idealista.com", href)
+            item["site"] = portal.value
+            if listing_id:
+                seen_ids.add(listing_id)
+            yield item
+
     parse_start_url = parse
