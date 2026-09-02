@@ -14,7 +14,12 @@ from os import path
 from art import tprint
 from fake_useragent import UserAgent
 
-from scrapyrealestate.legacy_config import LegacyConfig, load_legacy_config
+from scrapyrealestate.legacy_config import (
+    ConfigIssue,
+    ConfigValidationError,
+    LegacyConfig,
+    load_legacy_config,
+)
 from scrapyrealestate.runtime import get_runtime_paths
 from scrapyrealestate.security import (
     SecretRedactionFilter,
@@ -28,6 +33,8 @@ __license__ = "GPL"
 __version__ = "3.0.0"
 
 runtime_paths = get_runtime_paths()
+data = LegacyConfig()
+
 
 def get_bot_token():
     return resolve_telegram_bot_token(data)
@@ -93,11 +100,15 @@ def get_config():
 
 
 def check_config():
-    tb = telebot.TeleBot(get_bot_token())
-
     if not path.exists("scrapy.cfg"):
-        logger.error("NO SE ENCUENTRA EL FICHERO scrapy.cfg")
-        sys.exit()
+        raise ConfigValidationError(
+            [
+                ConfigIssue(
+                    "runtime_directory",
+                    "scrapy.cfg was not found; run from the Scrapy project directory",
+                )
+            ]
+        )
 
     # URLs para el mensaje de inicio.
     urls = get_urls(data)
@@ -112,8 +123,11 @@ def check_config():
                 urls_ok += f' <a href="{url}">{portal_name}</a>    '
 
     if not data.telegram_chatuser_id:
-        logger.error('EL CHAT ID DE TELEGRAM ESTÁ VACÍO')
-        sys.exit()
+        raise ConfigValidationError(
+            [ConfigIssue("telegram_chatuserID", "must not be empty")]
+        )
+
+    tb = telebot.TeleBot(get_bot_token())
 
     try:
         if data.start_msg:
@@ -133,10 +147,15 @@ def check_config():
             info_message = tb.send_message(
                 data.telegram_chatuser_id,
                 f"LOADING... scrapyrealestate v{__version__}\n")
-    except telebot.apihelper.ApiTelegramException:
-        logger.error('EL CHAT ID DE TELEGRAM NO ES CORRECTO O EL BOT '
-                     '@scrapyrealestatebot NO SE HA AÑADIDO BIEN AL CANAL')
-        sys.exit()
+    except telebot.apihelper.ApiTelegramException as error:
+        raise ConfigValidationError(
+            [
+                ConfigIssue(
+                    "telegram",
+                    "the chat ID or bot token could not be verified",
+                )
+            ]
+        ) from error
 
     logger.info(f"CANAL DE TELEGRAM {info_message.chat.title} VERIFICADO")
     return info_message
@@ -144,8 +163,9 @@ def check_config():
 
 def checks():
     if data.time_update < 300:
-        logger.error("TIME UPDATE < 300 (el mínimo es 300 segundos)")
-        sys.exit()
+        raise ConfigValidationError(
+            [ConfigIssue("time_update", "must be at least 300 seconds")]
+        )
     check_config()   # valida la configuración y verifica el canal de Telegram
 
 
@@ -189,8 +209,9 @@ def get_urls(data: LegacyConfig):
     urls = {}
 
     if not any(data.portal_urls.values()):
-        logger.warning("NO URLS ENTERED (MINIMUM 1 URL)")
-        sys.exit()
+        raise ConfigValidationError(
+            [ConfigIssue("portal_urls", "at least one portal URL is required")]
+        )
 
     start_urls_idealista = data.url_idealista
     start_urls_idealista = [url + '?ordenado-por=fecha-publicacion-desc' for url in start_urls_idealista]
@@ -324,8 +345,7 @@ def scrap_realestate(telegram_msg):
 
     process = subprocess.run(["scrapy", "list"], capture_output=True)
     if process.returncode != 0:
-        logger.error("SPIDERS NOT DETECTED")
-        sys.exit()
+        raise RuntimeError("Scrapy could not discover the configured spiders")
 
     for url in urls_mixed:
         if url == '':
