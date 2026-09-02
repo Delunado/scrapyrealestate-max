@@ -39,6 +39,13 @@ infrastructure without a concrete requirement and an explicit update to
   that validate a legacy raw search URL, build a recent-sort crawl request, and
   normalize spider output around the existing spiders above. Not yet consumed by
   `main.py`'s dispatcher.
+- `scrapyrealestate/scrapyrealestate/execution/`: isolated per-portal spider
+  execution, built beside the legacy flow and not yet consumed by `main.py`.
+  `execution/contract.py` defines `PortalRunRequest` (one crawl-ready attempt
+  bound to its own output file) and `PortalRunResult` (the operational
+  outcome, typed against `domain.values.RunStatus`: `success`, `empty`,
+  `timeout`, `transport_error`, `parser_error`, `blocked`, `unavailable`); a
+  non-conclusive result — anything but `success`/`empty` — cannot carry items.
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: current first-run-only Flask
   server. It writes `data/config.json`; `main.py` then terminates it.
 - `scrapyrealestate/scrapyrealestate/templates/`: current unstyled first-run form
