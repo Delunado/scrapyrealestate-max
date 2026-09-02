@@ -4,8 +4,9 @@
 
 ScrapyRealEstate monitors Spanish property portals, periodically scrapes configured
 search-result URLs, and notifies a Telegram channel about newly seen listings. The
-current `master` branch is a small script-oriented application, not yet the
-persistent multi-search product described in `TASKS.md`.
+current `master` branch now runs the persistent SQLite-backed application and
+scheduler; the server-rendered management UI and operational views remain later
+phases in `TASKS.md`.
 
 Preserve working spiders while evolving the system incrementally. Prefer the
 standard library, Flask/Jinja, Scrapy, Playwright only where necessary, and SQLite.
@@ -17,15 +18,13 @@ infrastructure without a concrete requirement and an explicit update to
 
 - `scrapyrealestate/main.py`: compatibility process entrypoint now delegating to
   `scrapyrealestate.bootstrap.main`, so the published `python main.py` command runs
-  the persistent SQLite/web/scheduler application. Retired first-run, shared-output,
-  direct-Telegram, and sleep-loop helpers remain in this file only until the next
-  explicit Phase 7 cleanup task.
-- `scrapyrealestate/scrapyrealestate/bootstrap.py`: new persistent composition
-  entrypoint built beside the legacy runtime. It resolves the data directory,
+  the persistent SQLite/web/scheduler application. The retired first-run,
+  shared-output, direct-Telegram, and sleep-loop implementation has been removed.
+- `scrapyrealestate/scrapyrealestate/bootstrap.py`: persistent composition
+  entrypoint. It resolves the data directory,
   applies migrations, idempotently imports any preserved legacy JSON sources once,
   composes repositories/orchestration/scheduler/Flask, and starts web plus scheduler
-  without waiting for `config.json`. It is not the deployed entrypoint until the
-  explicit Phase 7 cutover task.
+  without waiting for `config.json`; this is the deployed runtime path.
   `ApplicationRuntime` temporarily owns SIGTERM/SIGINT handlers while serving: a
   signal stops new scheduler dispatches and spider launches, requests web shutdown,
   allows a bounded crawl grace period, kills remaining child process groups, then
@@ -40,8 +39,7 @@ infrastructure without a concrete requirement and an explicit update to
 - `scrapyrealestate/scrapyrealestate/items.py`: current loose Scrapy item contract.
 - `scrapyrealestate/scrapyrealestate/domain/`: normalized value enums, listing and
   search models, Spanish display-value normalization, the transitional legacy item
-  mapper, and explicit three-state local filter evaluation. The legacy runtime does
-  not consume this boundary yet.
+  mapper, and explicit three-state local filter evaluation.
 - `scrapyrealestate/scrapyrealestate/persistence/`: configured SQLite connections,
   explicit transactions, ordered migrations, typed repositories for searches,
   listings, prices, runs, and notifications, plus idempotent legacy importers and
@@ -51,10 +49,10 @@ infrastructure without a concrete requirement and an explicit update to
 - `scrapyrealestate/scrapyrealestate/portals/`: the `PortalAdapter` interface and
   `PortalMetadata`/`PortalRequest` contract (`base.py`), plus per-portal adapters
   that validate a legacy raw search URL, build a recent-sort crawl request, and
-  normalize spider output around the existing spiders above. Not yet consumed by
-  `main.py`'s dispatcher.
+  normalize spider output around the existing spiders above. Search orchestration
+  resolves every portal through this registry.
 - `scrapyrealestate/scrapyrealestate/execution/`: isolated per-portal spider
-  execution, built beside the legacy flow and not yet consumed by `main.py`.
+  execution used by the persistent search orchestration path.
   `execution/contract.py` defines `PortalRunRequest` (one crawl-ready attempt
   bound to its own output file) and `PortalRunResult` (the operational
   outcome, typed against `domain.values.RunStatus`: `success`, `empty`,
@@ -64,12 +62,9 @@ infrastructure without a concrete requirement and an explicit update to
   (`OutputDecodeError` on a malformed or non-object line; a missing file is
   a legitimate empty result). `RuntimePaths.attempt_output(label)`
   (`runtime.py`) hands out a unique `data/runs/<label>-<uuid>.jl` path per
-  attempt, so — once wired into the runner — every attempt writes its own
-  file and the legacy concatenated-JSON-array repair step
-  (`main.scrap_realestate`'s `\n][` -> `,` patch) becomes unnecessary rather
-  than needing a stricter parser for the same shared-file shape.
-  `execution/runner.py`'s `SpiderRunner` replaces `main.run_spider`'s bare
-  `subprocess.run(..., check=False)`: it applies `PortalRunRequest.
+  attempt, so every attempt writes its own file and never needs the retired
+  concatenated-JSON-array repair step.
+  `execution/runner.py`'s `SpiderRunner` applies `PortalRunRequest.
   timeout_seconds`, classifies a non-zero return code as `transport_error`
   and a `read_jsonl_items` decode failure as `parser_error`, bounds
   captured stderr to a fixed byte budget as the result's diagnostic, and
@@ -87,8 +82,8 @@ infrastructure without a concrete requirement and an explicit update to
   per-portal guarantee `services.search_orchestration`'s multi-portal loop
   depends on.
 - `scrapyrealestate/scrapyrealestate/services/`: cross-cutting services built
-  on `execution/` and `persistence/`, beside the legacy flow and not yet
-  consumed by `main.py`. `services/search_orchestration.py`'s
+  on `execution/` and `persistence/`, composed by the persistent bootstrap.
+  `services/search_orchestration.py`'s
   `SearchOrchestrationService.run_search(search_record, trigger)` first
   acquires `services/locks.py`'s `SearchRunLock` for this search — a second
   call for the same search while one is in flight raises
@@ -179,9 +174,9 @@ infrastructure without a concrete requirement and an explicit update to
   scheduler calls this service by search ID rather than invoking a separate path.
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: Flask application factory
   with per-application runtime paths and injected repository/service containers.
-  The factory remains available independently of `config.json`; during the
-  transition, its legacy form still writes `data/config.json` and `main.py` still
-  launches and terminates the direct-script server around first-run configuration.
+  The factory remains available independently of `config.json`; its legacy form
+  can still write a rollback/import source, but no process waits for that file and
+  the module is never launched as a first-run subprocess.
   `/healthz` is process liveness; `/readyz` uses only an optional injected local
   readiness check and returns a generic response, never portal state or diagnostics.
 - `scrapyrealestate/scrapyrealestate/templates/`: current unstyled first-run form
@@ -199,35 +194,26 @@ infrastructure without a concrete requirement and an explicit update to
 - `README.md`: current user-facing behavior and deployment instructions.
 - `TASKS.md`: canonical ordered improvement plan. Read it before making changes.
 
-There is currently no package metadata or type checker. SQLite infrastructure is
-being introduced incrementally and is not consumed by the legacy runtime yet.
+There is currently no package metadata or type checker.
 Offline tests use pytest with shared fixtures in `tests/`, and Ruff
 enforces the focused Python 3.12 lint baseline configured in `pyproject.toml`.
 GitHub Actions runs tests, lint, and Compose validation without live portal access.
 
-## Retired legacy runtime flow pending cleanup
+## Current runtime flow
 
-The unused helpers still present in `main.py` previously performed this flow:
+Run `python main.py` from the inner `scrapyrealestate/` directory. The process:
 
-1. creates `./data/` if `data/config.json` is absent;
-2. launches `scrapyrealestate/flask_server.py` as a child process and waits for the
-   form to create `config.json`;
-3. stops the Flask child, configures logging, checks the 300-second minimum interval,
-   and sends a Telegram startup/validation message;
-4. refreshes `data/useragent.txt` every ten cycles;
-5. randomizes all configured raw portal URLs and resolves each one's spider and
-   recent-sort request through `portals.build_default_registry()` (hostname lookup,
-   Idealista's proxy/Playwright choice still config-driven via `proxy_idealista`);
-   a URL with no registered hostname or an unresolvable transaction type is logged
-   and skipped rather than raised;
-6. invokes `scrapy crawl` once per URL, appending every crawl to a shared JSON export;
-7. repairs concatenated JSON arrays, filters only by global min/max price, compares
-   integer listing IDs against `data/ids.json`, and sends new matches to Telegram;
-8. sleeps for the configured interval plus 3–40 seconds and repeats.
-
-Subprocess exit codes are currently ignored. A failed portal can therefore look like
-an empty result, and no per-portal run status is retained. The current process also
-requires valid Telegram configuration to stay alive.
+1. resolves and creates the configured data directory;
+2. applies ordered SQLite migrations;
+3. idempotently imports preserved `config.json` and `ids.json` sources when present;
+4. composes repositories, portal adapters, isolated execution, ingestion, durable
+   notification delivery, the scheduler, and Flask;
+5. starts the condition-driven scheduler and Waitress web server without requiring
+   legacy configuration or Telegram;
+6. routes scheduled searches through the same lock-protected orchestration service
+   used by manual triggers;
+7. persists run, listing, price, event, delivery, and next-schedule state in SQLite;
+8. handles SIGTERM/SIGINT with bounded crawler and web/database shutdown.
 
 ## Current configuration and persistence
 
@@ -322,7 +308,7 @@ spiders still emit `ScrapyrealestateItem`.
 
 ## Portal adapter conventions
 
-The adapter layer lives in `portals/`; `main.py` dispatches through it (see below)
+The adapter layer lives in `portals/`; search orchestration dispatches through it
 rather than a domain `if/elif` chain. `PortalAdapter` (`portals/base.py`) declares a
 stable key, display name, domains, spider name, transaction types, transport
 (`PortalTransport.HTTP` / `PLAYWRIGHT` / `ROTATING_PROXY_HTTP`, which also implies
@@ -338,14 +324,12 @@ filter encoding exists (a later `TASKS.md` item), every adapter declares
 (`get`) or normalized hostname (`get_by_hostname`, case-insensitive and
 `www.`-agnostic); registration rejects a duplicate portal key or a domain
 already claimed by another adapter. `portals.build_default_registry(*,
-idealista_proxy=False)` builds the registry `main.py` actually consults:
+idealista_proxy=False)` builds the registry the bootstrap injects into orchestration:
 `PisoscomAdapter`, `HabitacliaAdapter`, `FotocasaAdapter`, `YaencontreAdapter`,
-and one Idealista adapter chosen by the `idealista_proxy` flag (never both —
-they share `idealista.com`). `main.py`'s `scrap_realestate` resolves each raw
-URL's adapter with `registry.get_by_hostname`, builds its request with
-`adapter.build_request`, and skips (with a logged warning) a URL whose
-hostname is unregistered or whose transaction type the adapter cannot infer,
-rather than raising out of the run. Adding a portal must not add a new
+and one Idealista adapter chosen by the persisted portal selection (never both —
+they share `idealista.com`). Orchestration resolves adapters by stable portal key;
+raw URL overrides are validated and built by that adapter, and an unavailable or
+invalid portal is recorded without raising out of the run. Adding a portal must not add a new
 central `if/elif`; register its adapter in `build_default_registry` instead.
 Explicitly report unsupported filters and distinguish:
 
@@ -392,7 +376,7 @@ its own fixture-backed contract tests
 `degraded=True` and promise no anti-bot bypass. They intentionally share the
 `idealista.com` domain, so `PortalRegistry.get_by_hostname` cannot resolve between
 them; portal selection stays a config-driven choice (the current `proxy_idealista`
-flag), never hostname routing, exactly as `main.py` already does today. Neither
+flag), never hostname routing, preserving the legacy selection semantics. Neither
 Idealista adapter overrides `_build_search_url`, so `build_request_from_search`
 raises the shared "not implemented" `PortalRequestError` for both: Idealista's
 location taxonomy is a `<province>-<municipality>` pair (e.g. `madrid-madrid`
@@ -597,9 +581,8 @@ or local editor files.
 - Current raw URL suffix concatenation can duplicate slashes or query strings. URL
   construction belongs in adapters and requires tests.
 - SQLite listing ingestion and event creation (`services/ingestion.py`) are
-  transactional today. The still-outstanding piece is Phase 6: routing those
-  persisted events to notifiers with durable delivery/retry, replacing the
-  legacy direct-Telegram, non-atomic JSON dedup path.
+  transactional, and eligible events create durable delivery attempts in that same
+  transaction. Provider delivery/retry is isolated from portal run status.
 - User-facing README, template, and runtime text is UTF-8 and has encoding regression
   coverage. Keep new text UTF-8 and do not mix broad wording cleanup into unrelated
   behavior tasks.

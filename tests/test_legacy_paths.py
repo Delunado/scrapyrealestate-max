@@ -1,20 +1,8 @@
 import json
 from pathlib import Path
 
-import main
 from scrapyrealestate import flask_server, settings
 from scrapyrealestate.runtime import RuntimePaths
-
-
-def test_main_loads_config_from_runtime_paths(tmp_path: Path, monkeypatch):
-    paths = RuntimePaths((tmp_path / "runtime-data").resolve())
-    paths.ensure_data_dir()
-    paths.config_file.write_text('{"scrapy_rs_name": "configured"}', encoding="utf-8")
-    monkeypatch.setattr(main, "runtime_paths", paths)
-
-    main.get_config()
-
-    assert main.data.scrapy_rs_name == "configured"
 
 
 def test_first_run_form_writes_config_to_runtime_paths(tmp_path: Path):

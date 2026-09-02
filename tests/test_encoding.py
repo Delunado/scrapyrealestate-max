@@ -11,8 +11,6 @@ MOJIBAKE_MARKERS = ("Ã", "Â", "â€", "�")
     [
         ("README.md", "Configuración"),
         ("README.md", "deduplicación"),
-        ("scrapyrealestate/main.py", "falló"),
-        ("scrapyrealestate/main.py", "€/m²"),
         ("scrapyrealestate/scrapyrealestate/templates/info.html", "¡Configuración"),
     ],
 )

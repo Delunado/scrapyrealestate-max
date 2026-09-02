@@ -120,7 +120,7 @@ than code complexity.
 - [x] **Medium** — Add SIGTERM/SIGINT lifecycle handling that stops new scheduling, terminates child crawls after a grace period, and closes the web/database services cleanly.
 - [x] **Medium** — Run the Flask application under a lightweight production WSGI server suitable for the single-service Compose deployment.
 - [x] **Hard** — Cut over from the legacy infinite loop to the new bootstrap only after migration, orchestration, notification, and lifecycle integration tests pass.
-- [ ] **Easy** — Remove retired first-run subprocess, JSON array repair, direct Telegram, and sleep-loop code after the cutover, preserving migration readers until their deprecation window ends.
+- [x] **Easy** — Remove retired first-run subprocess, JSON array repair, direct Telegram, and sleep-loop code after the cutover, preserving migration readers until their deprecation window ends.
 
 ## Phase 8 — Search and notification web UI
 

@@ -1,6 +1,6 @@
 """Strict JSON Lines decoding for per-attempt spider output.
 
-The legacy pipeline (see ``main.scrap_realestate``) appends every crawl's
+The retired legacy pipeline appended every crawl's
 ``-o`` output to one shared file and then repairs the concatenated JSON
 arrays that produces (``\\n][`` -> ``,``) before parsing it. Isolated,
 per-attempt output (``RuntimePaths.attempt_output``) removes the need for

@@ -53,7 +53,8 @@ ROBOTSTXT_OBEY = False
 
 
 def custom_headers(browser_type, playwright_request, scrapy_headers) -> dict:
-    # User-Agent que escribe main.py; si aun no existe, uno por defecto.
+    # Preserve an imported/administrator-provided User-Agent; otherwise use a
+    # stable compatibility default.
     try:
         with runtime_paths.user_agent_file.open("r") as file:
             useragent = file.read().strip()

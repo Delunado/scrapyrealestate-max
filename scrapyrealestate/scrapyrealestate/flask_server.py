@@ -1,9 +1,8 @@
-"""Persistent Flask application factory and transitional configuration routes.
+"""Persistent Flask application factory and legacy-import configuration routes.
 
-The legacy runtime still launches this module as a subprocess during first-run
-configuration. The Flask application itself is no longer a module-global
-singleton, though: the future bootstrap can create one long-lived instance and
-inject the repositories and services it owns.
+The application is no longer a module-global singleton or a first-run subprocess.
+The persistent bootstrap creates one long-lived instance and injects the
+repositories and services it owns.
 """
 
 from __future__ import annotations
@@ -77,9 +76,8 @@ def create_app(
     """Create an independently configured, long-lived Flask application.
 
     Repositories and services are injected rather than constructed in web code.
-    They are optional during the transitional legacy first-run flow because its
-    two routes only write ``config.json``; the persistent bootstrap will supply
-    the SQLite-backed collaborators it owns.
+    They remain optional for isolated route tests and the legacy import form; the
+    persistent bootstrap supplies the SQLite-backed collaborators it owns.
     """
     app = Flask(__name__, template_folder="templates")
     if config is not None:
@@ -133,7 +131,3 @@ def result():
         return render_template("info.html")
 
     return render_template("index.html")
-
-
-if __name__ == "__main__":
-    create_app().run(host="0.0.0.0", port=8080)
