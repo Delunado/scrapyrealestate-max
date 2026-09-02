@@ -8,6 +8,7 @@ from scrapyrealestate.security import (
     REDACTED,
     SecretRedactionFilter,
     SecretRedactingFormatter,
+    configured_notification_secrets,
     resolve_telegram_bot_token,
 )
 
@@ -79,3 +80,10 @@ def test_logging_formatter_redacts_secrets_from_tracebacks():
 
     assert "configured-secret" not in formatted
     assert REDACTED in formatted
+
+
+def test_notification_secret_collection_flattens_nested_values_and_deduplicates():
+    assert configured_notification_secrets(
+        {"token": "one", "nested": {"password": "two"}},
+        {"headers": ["one", "three"], "missing": None},
+    ) == ("one", "two", "three")

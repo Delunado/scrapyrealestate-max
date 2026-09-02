@@ -142,6 +142,9 @@ infrastructure without a concrete requirement and an explicit update to
   attempts by default. Successful pairs are never claimable again; an expired
   in-flight lease is reclaimable after restart (external providers remain
   inherently at-least-once if a process dies after sending but before recording).
+  Both immediate and durable paths defensively redact every provider-controlled
+  result field against all nested channel secrets before returning or persisting
+  it; ordinary channel reads stay masked for logs, status views, and templates.
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: current first-run-only Flask
   server. It writes `data/config.json`; `main.py` then terminates it.
 - `scrapyrealestate/scrapyrealestate/templates/`: current unstyled first-run form

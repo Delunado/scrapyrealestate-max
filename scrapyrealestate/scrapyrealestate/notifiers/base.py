@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Iterable
 from typing import Protocol
 
 from scrapyrealestate.domain.notification import NotificationEvent
+from scrapyrealestate.security import redact_secrets
 
 
 class NotifierConfigurationError(ValueError):
@@ -41,3 +43,20 @@ class Notifier(Protocol):
 
     def send(self, event: NotificationEvent) -> DeliveryResult:
         """Deliver one event and return a classified, non-secret outcome."""
+
+
+def redact_delivery_result(
+    result: DeliveryResult, secrets: Iterable[str]
+) -> DeliveryResult:
+    """Defensively sanitize every provider-controlled status field."""
+    configured = tuple(secrets)
+
+    def clean(value: str | None) -> str | None:
+        return redact_secrets(value, configured) if value is not None else None
+
+    return DeliveryResult(
+        success=result.success,
+        provider_message_id=clean(result.provider_message_id),
+        error_category=clean(result.error_category),
+        diagnostic=clean(result.diagnostic),
+    )

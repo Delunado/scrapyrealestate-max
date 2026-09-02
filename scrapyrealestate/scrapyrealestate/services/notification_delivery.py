@@ -6,13 +6,14 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from scrapyrealestate.notifiers.base import DeliveryResult
+from scrapyrealestate.notifiers.base import DeliveryResult, redact_delivery_result
 from scrapyrealestate.notifiers.registry import NotifierRegistry
 from scrapyrealestate.persistence.notifications import (
     ClaimedDelivery,
     DeliveryCompletion,
     NotificationRepository,
 )
+from scrapyrealestate.security import configured_notification_secrets
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,9 +81,11 @@ class DurableNotificationDispatcher:
         if claim is None:
             return None
 
+        secrets: tuple[str, ...] = ()
         try:
             event = self._repository.event_for_delivery(claim.attempt.event_id)
             channel = self._repository.delivery_channel(claim.attempt.channel_id)
+            secrets = configured_notification_secrets(channel.secret_config)
         except Exception:
             result = DeliveryResult.failed(
                 "event_error", "notification delivery data is invalid"
@@ -106,6 +109,7 @@ class DurableNotificationDispatcher:
                         "provider_error", "notification delivery failed"
                     )
 
+        result = redact_delivery_result(result, secrets)
         completion = self._repository.complete_delivery(
             claim,
             success=result.success,

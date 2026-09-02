@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Iterable, Mapping
+from typing import Any
 
 from scrapyrealestate.legacy_config import (
     ConfigIssue,
@@ -49,6 +50,27 @@ def configured_telegram_secrets(
         )
         if secret
     )
+
+
+def configured_notification_secrets(
+    *secret_configs: Mapping[str, Any],
+) -> tuple[str, ...]:
+    """Flatten provider secret mappings for status/log redaction."""
+    found: list[str] = []
+
+    def visit(value: Any) -> None:
+        if isinstance(value, Mapping):
+            for item in value.values():
+                visit(item)
+        elif isinstance(value, (list, tuple, set, frozenset)):
+            for item in value:
+                visit(item)
+        elif isinstance(value, str) and value:
+            found.append(value)
+
+    for config in secret_configs:
+        visit(config)
+    return tuple(dict.fromkeys(found))
 
 
 def redact_secrets(value: object, secrets: Iterable[str]) -> str:

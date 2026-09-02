@@ -5,12 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from scrapyrealestate.domain.notification import NotificationEvent
-from scrapyrealestate.notifiers.base import DeliveryResult
+from scrapyrealestate.notifiers.base import DeliveryResult, redact_delivery_result
 from scrapyrealestate.notifiers.registry import NotifierRegistry
 from scrapyrealestate.persistence.notifications import (
     NotificationProvider,
     NotificationRepository,
 )
+from scrapyrealestate.security import configured_notification_secrets
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +62,9 @@ class NotificationRouter:
                     result = DeliveryResult.failed(
                         "provider_error", "notification delivery failed"
                     )
+            result = redact_delivery_result(
+                result, configured_notification_secrets(channel.secret_config)
+            )
             deliveries.append(
                 RoutedDelivery(channel.id, channel.name, channel.provider, result)
             )
