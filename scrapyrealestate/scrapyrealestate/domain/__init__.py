@@ -9,6 +9,7 @@ from scrapyrealestate.domain.normalization import (
     normalize_floor,
     normalize_nullable_boolean,
 )
+from scrapyrealestate.domain.search import NormalizedSearch, SearchFilters
 
 from scrapyrealestate.domain.values import (
     PortalKey,
@@ -21,9 +22,11 @@ from scrapyrealestate.domain.values import (
 __all__ = [
     "LegacyItemMappingError",
     "NormalizedListing",
+    "NormalizedSearch",
     "PortalKey",
     "PropertyType",
     "RunStatus",
+    "SearchFilters",
     "TransactionType",
     "TriState",
     "canonicalize_url",

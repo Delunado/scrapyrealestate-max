@@ -35,7 +35,7 @@ than code complexity.
 - [x] **Medium** — Define the normalized listing model, required/optional fields, UTC timestamp conventions, canonical URL rules, and raw-source diagnostics.
 - [x] **Medium** — Add locale-aware normalization helpers for euro prices, square metres, room/bath counts, floors, and nullable booleans with edge-case tests.
 - [x] **Medium** — Add a compatibility mapper from every current `ScrapyrealestateItem` field to the normalized listing model and reject records without usable identity.
-- [ ] **Medium** — Define the normalized search/filter model, including price, area, rooms, bathrooms, location, neighbourhood, floor, elevator, terrace, garage, property type, and maximum price/m².
+- [x] **Medium** — Define the normalized search/filter model, including price, area, rooms, bathrooms, location, neighbourhood, floor, elevator, terrace, garage, property type, and maximum price/m².
 - [ ] **Medium** — Implement local filter evaluation over normalized listings with explicit `match`, `no match`, and `unknown/not evaluable` outcomes.
 - [ ] **Easy** — Define filter-capability metadata that distinguishes remote, local, and unsupported filters and add serialization/contract tests.
 - [ ] **Medium** — Update the Pisos.com spider to emit values compatible with the normalized boundary while retaining the legacy mapper during transition.
