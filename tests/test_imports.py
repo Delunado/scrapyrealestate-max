@@ -7,6 +7,7 @@ APPLICATION_MODULES = (
     "main",
     "scrapyrealestate.flask_server",
     "scrapyrealestate.items",
+    "scrapyrealestate.legacy_config",
     "scrapyrealestate.proxies",
     "scrapyrealestate.settings",
     "scrapyrealestate.spiders.fotocasa_spider",
@@ -35,4 +36,3 @@ def test_application_modules_import_without_network_calls(
         importlib.import_module(module_name)
 
     assert network_attempts == []
-

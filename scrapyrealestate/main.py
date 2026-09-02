@@ -16,6 +16,7 @@ from os import path
 from art import tprint
 from fake_useragent import UserAgent
 
+from scrapyrealestate.legacy_config import LegacyConfig, load_legacy_config
 from scrapyrealestate.runtime import get_runtime_paths
 
 
@@ -32,7 +33,7 @@ DEFAULT_BOT_TOKEN = '5042109408:AAHBrCsNiuI3lXBEiLjmyxqXapX4h1LHbJs'
 def get_bot_token():
     # Prioridad: token de la web (config.json) > variable de entorno > por defecto.
     try:
-        token = data.get('telegram_bot_token', '')
+        token = data.telegram_bot_token
     except NameError:
         token = ''
     return token or os.environ.get('TELEGRAM_BOT_TOKEN') or DEFAULT_BOT_TOKEN
@@ -47,7 +48,7 @@ FALLBACK_USER_AGENT = (
 def init_logs():
     global logger
     try:
-        log_level = data['log_level'].upper()
+        log_level = data.log_level
     except (KeyError, NameError, AttributeError):
         log_level = 'INFO'
 
@@ -86,9 +87,8 @@ def get_config():
         process = init_app_flask()
         get_config_flask(process)
     else:
-        with runtime_paths.config_file.open() as json_file:
-            global data
-            data = json.load(json_file)
+        global data
+        data = load_legacy_config(runtime_paths.config_file)
 
 
 def check_config():
@@ -110,27 +110,27 @@ def check_config():
                 urls_ok_count += 1
                 urls_ok += f' <a href="{url}">{portal_name}</a>    '
 
-    if data['telegram_chatuserID'] is None:
+    if not data.telegram_chatuser_id:
         logger.error('EL CHAT ID DE TELEGRAM ESTÁ VACÍO')
         sys.exit()
 
     try:
-        if data['start_msg'] == 'True':
+        if data.start_msg:
             info_message = tb.send_message(
-                data['telegram_chatuserID'],
+                data.telegram_chatuser_id,
                 f"<code>LOADING...</code>\n"
                 f"\n"
                 f"<code>scrapyrealestate v{__version__}\n</code>"
                 f"\n"
-                f"<code>REFRESH     <b>{data['time_update']}</b>s</code>\n"
-                f"<code>MIN PRICE   <b>{data['min_price']}€</b></code>\n"
-                f"<code>MAX PRICE   <b>{data['max_price']}€</b> (0 = NO LIMIT)</code>\n"
+                f"<code>REFRESH     <b>{data.time_update}</b>s</code>\n"
+                f"<code>MIN PRICE   <b>{data.min_price}€</b></code>\n"
+                f"<code>MAX PRICE   <b>{data.max_price}€</b> (0 = NO LIMIT)</code>\n"
                 f"<code>URLS        <b>{urls_ok_count}</b>  →   </code>{urls_ok}\n",
                 parse_mode='HTML'
             )
         else:
             info_message = tb.send_message(
-                data['telegram_chatuserID'],
+                data.telegram_chatuser_id,
                 f"LOADING... scrapyrealestate v{__version__}\n")
     except telebot.apihelper.ApiTelegramException:
         logger.error('EL CHAT ID DE TELEGRAM NO ES CORRECTO O EL BOT '
@@ -142,7 +142,7 @@ def check_config():
 
 
 def checks():
-    if int(data['time_update']) < 300:
+    if data.time_update < 300:
         logger.error("TIME UPDATE < 300 (el mínimo es 300 segundos)")
         sys.exit()
     check_config()   # valida la configuración y verifica el canal de Telegram
@@ -173,8 +173,8 @@ def get_config_flask(process):
     while True:
         if runtime_paths.config_file.is_file():
             try:
-                with runtime_paths.config_file.open() as json_file:
-                    data = json.load(json_file)
+                with runtime_paths.config_file.open(encoding="utf-8") as config_file:
+                    data = LegacyConfig.from_mapping(json.load(config_file))
                 break
             except json.JSONDecodeError:
                 # todavía se está escribiendo
@@ -184,27 +184,25 @@ def get_config_flask(process):
         process.terminate()
 
 
-def get_urls(data):
+def get_urls(data: LegacyConfig):
     urls = {}
 
-    if data.get('url_idealista', '') == '' and data.get('url_pisoscom', '') == '' \
-            and data.get('url_fotocasa', '') == '' and data.get('url_habitaclia', '') == '' \
-            and data.get('url_yaencontre', '') == '':
+    if not any(data.portal_urls.values()):
         logger.warning("NO URLS ENTERED (MINIMUM 1 URL)")
         sys.exit()
 
-    start_urls_idealista = data.get('url_idealista', [])
+    start_urls_idealista = data.url_idealista
     start_urls_idealista = [url + '?ordenado-por=fecha-publicacion-desc' for url in start_urls_idealista]
 
-    start_urls_pisoscom = data.get('url_pisoscom', [])
+    start_urls_pisoscom = data.url_pisoscom
     start_urls_pisoscom = [url + 'fecharecientedesde-desc/' for url in start_urls_pisoscom]
 
-    start_urls_fotocasa = data.get('url_fotocasa', [])
+    start_urls_fotocasa = data.url_fotocasa
 
-    start_urls_habitaclia = data.get('url_habitaclia', [])
+    start_urls_habitaclia = data.url_habitaclia
     start_urls_habitaclia = [url + '?ordenar=mas_recientes' for url in start_urls_habitaclia]
 
-    start_urls_yaencontre = data.get('url_yaencontre', [])
+    start_urls_yaencontre = data.url_yaencontre
     start_urls_yaencontre = [url + '/o-recientes' for url in start_urls_yaencontre]
 
     urls['start_urls_idealista'] = start_urls_idealista
@@ -311,18 +309,15 @@ def run_spider(spider_name, scrapy_log, out_file, start_url):
 
 
 def scrap_realestate(telegram_msg):
-    scrapy_rs_name = data['scrapy_rs_name'].replace("-", "_")
-    scrapy_log = data['log_level_scrapy'].upper()
-    proxy_idealista = data['proxy_idealista']
+    scrapy_rs_name = data.scrapy_rs_name.replace("-", "_")
+    scrapy_log = data.log_level_scrapy
+    proxy_idealista = data.proxy_idealista
     out_file = str(runtime_paths.crawl_output(scrapy_rs_name))
 
     # todas las claves 'url_*' de la config
     urls = []
-    for key in data:
-        if "url" in key and isinstance(data[key], list):
-            urls += data[key]
-        elif "url" in key:
-            urls.append(data[key])
+    for portal_urls in data.portal_urls.values():
+        urls.extend(portal_urls)
 
     urls_mixed = mix_list(urls)
 
@@ -346,7 +341,7 @@ def scrap_realestate(telegram_msg):
         logger.debug(f"SCRAPING PORTAL {portal_name_url} FROM {scrapy_rs_name}...")
         if portal_name_url == 'idealista.com':
             url_last_flats = url + '?ordenado-por=fecha-publicacion-desc'
-            if proxy_idealista == 'on':
+            if proxy_idealista:
                 logger.debug('IDEALISTA PROXY ACTIVATED')
                 run_spider('idealista_proxy', scrapy_log, out_file, url_last_flats)
             else:
@@ -383,9 +378,9 @@ def scrap_realestate(telegram_msg):
 
     check_new_flats(out_file,
                     scrapy_rs_name,
-                    data['min_price'],
-                    data['max_price'],
-                    data['telegram_chatuserID'],
+                    data.min_price,
+                    data.max_price,
+                    data.telegram_chatuser_id,
                     telegram_msg,
                     logger)
 
@@ -416,8 +411,8 @@ def init():
 
     count = 0
     telegram_msg = False
-    scrapy_rs_name = data['scrapy_rs_name'].replace("-", "_")
-    send_first = data['send_first']
+    scrapy_rs_name = data.scrapy_rs_name.replace("-", "_")
+    send_first = data.send_first
 
     while True:
         try:
@@ -431,13 +426,13 @@ def init():
             update_useragent()
 
         # send_first envía ya en el primer ciclo; si no, solo a partir del segundo
-        if send_first == 'True' or count > 0:
+        if send_first or count > 0:
             telegram_msg = True
 
         scrap_realestate(telegram_msg)
 
         count += 1
-        rndtime = random.randint(3, 40) + int(data['time_update'])
+        rndtime = random.randint(3, 40) + data.time_update
         logger.info(f"SLEEPING {rndtime} SECONDS")
         time.sleep(rndtime)
 

@@ -14,7 +14,7 @@ def test_main_loads_config_from_runtime_paths(tmp_path: Path, monkeypatch):
 
     main.get_config()
 
-    assert main.data == {"scrapy_rs_name": "configured"}
+    assert main.data.scrapy_rs_name == "configured"
 
 
 def test_first_run_form_writes_config_to_runtime_paths(tmp_path: Path, monkeypatch):

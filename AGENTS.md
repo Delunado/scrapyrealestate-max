@@ -85,11 +85,14 @@ directory, normally `scrapyrealestate/` locally and
 - `test_<spider>.json` and `test_<spider>.log`: manual live-test output and the
   retained log used to classify the crawl result.
 
-Current `config.json` keys are `scrapy_rs_name`, `log_level`,
+Legacy `config.json` is loaded and validated as typed configuration by
+`scrapyrealestate/legacy_config.py`. Current JSON keys are `scrapy_rs_name`, `log_level`,
 `log_level_scrapy`, `time_update`, `telegram_chatuserID`,
 `telegram_bot_token`, `start_msg`, `min_price`, `max_price`,
 `proxy_idealista`, `send_first`, and a list-valued `url_<portal>` key for each
-portal. Form values, including booleans and numbers, are stored as strings.
+portal. Form values, including booleans and numbers, are stored as strings and are
+converted at the loading boundary; portal URL fields accept their current list
+form and older scalar strings.
 
 Do not change the meaning of legacy files before the SQLite importer and rollback
 path in `TASKS.md` exist. Import must be idempotent, preserve source files, and
