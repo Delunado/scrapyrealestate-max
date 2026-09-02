@@ -100,6 +100,11 @@ configuración en `http://localhost:8080/`. Rellénala y guarda: se crea
 `data/config.json` y el programa sigue solo. Mientras ese fichero exista no se
 vuelve a pedir nada (puedes editarlo a mano).
 
+Por compatibilidad, el directorio de datos es `./data` respecto al directorio de
+ejecución. Se puede elegir otro directorio persistente mediante
+`SCRAPYREALESTATE_DATA_DIR`; su valor debe ser una ruta absoluta. Todos los
+ficheros de ejecución se resolverán bajo ese directorio.
+
 Las URLs de los portales vienen precumplimentadas con búsquedas de Madrid;
 cámbialas por las tuyas antes de guardar.
 

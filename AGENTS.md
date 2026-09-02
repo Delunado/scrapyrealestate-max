@@ -71,9 +71,12 @@ requires valid Telegram configuration to stay alive.
 
 ## Current configuration and persistence
 
-All paths are relative to the runtime working directory, normally
-`scrapyrealestate/` locally and `/scrapyrealestate/scrapyrealestate` in the image.
-The ignored `scrapyrealestate/data/` directory may contain:
+Runtime paths are resolved centrally by `scrapyrealestate/runtime.py`. The
+`SCRAPYREALESTATE_DATA_DIR` environment variable accepts an absolute data
+directory; its compatibility default is `./data` resolved from the runtime working
+directory, normally `scrapyrealestate/` locally and
+`/scrapyrealestate/scrapyrealestate` in the image. The ignored
+`scrapyrealestate/data/` directory may contain:
 
 - `config.json`: one global search and runtime/Telegram settings;
 - `ids.json`: a flat global list of notified integer IDs, without portal names;

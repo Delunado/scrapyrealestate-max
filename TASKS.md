@@ -21,7 +21,7 @@ than code complexity.
 
 ## Phase 1 — Runtime configuration, paths, and security baseline
 
-- [ ] **Easy** — Introduce one runtime settings/path module with a configurable absolute data directory and compatibility defaults for local and container execution.
+- [x] **Easy** — Introduce one runtime settings/path module with a configurable absolute data directory and compatibility defaults for local and container execution.
 - [ ] **Easy** — Route config, ID history, User-Agent, crawl output, and test output paths through the shared path module without changing behavior.
 - [ ] **Medium** — Define and test typed legacy configuration loading, defaults, validation errors, and conversion of the current string booleans/numbers and list-valued URL fields.
 - [ ] **Easy** — Remove the shared Telegram fallback credential, require an explicit user token or environment override, and redact secrets from logs and object representations.
