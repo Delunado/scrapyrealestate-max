@@ -1,5 +1,10 @@
 """Normalized domain types shared by scraping, persistence, and services."""
 
+from scrapyrealestate.domain.capabilities import (
+    FilterCapabilities,
+    FilterSupport,
+    SearchFilterKey,
+)
 from scrapyrealestate.domain.filtering import (
     FilterEvaluation,
     FilterOutcome,
@@ -26,14 +31,17 @@ from scrapyrealestate.domain.values import (
 )
 
 __all__ = [
+    "FilterCapabilities",
     "FilterEvaluation",
     "FilterOutcome",
+    "FilterSupport",
     "LegacyItemMappingError",
     "NormalizedListing",
     "NormalizedSearch",
     "PortalKey",
     "PropertyType",
     "RunStatus",
+    "SearchFilterKey",
     "SearchFilters",
     "TransactionType",
     "TriState",
