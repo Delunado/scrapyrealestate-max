@@ -94,6 +94,10 @@ portal. Form values, including booleans and numbers, are stored as strings and a
 converted at the loading boundary; portal URL fields accept their current list
 form and older scalar strings.
 
+Legacy `config.json` and `ids.json` writes use same-directory temporary files and
+atomic replacement through `scrapyrealestate/atomic_files.py`. Keep legacy writes
+on this helper until SQLite becomes authoritative.
+
 Do not change the meaning of legacy files before the SQLite importer and rollback
 path in `TASKS.md` exist. Import must be idempotent, preserve source files, and
 record ambiguity: legacy IDs cannot always be assigned to a portal because

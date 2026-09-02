@@ -15,6 +15,7 @@ from os import path
 from art import tprint
 from fake_useragent import UserAgent
 
+from scrapyrealestate.atomic_files import atomic_write_json
 from scrapyrealestate.legacy_config import (
     ConfigIssue,
     ConfigValidationError,
@@ -314,8 +315,7 @@ def check_new_flats(json_file_name, scrapy_rs_name, min_price, max_price,
                 logger.error(f'ERROR ENVIANDO A TELEGRAM: {e}')
             time.sleep(3.05)
 
-    with runtime_paths.ids_file.open("w") as outfile:
-        json.dump(ids_file + new_ids_file, outfile)
+    atomic_write_json(runtime_paths.ids_file, ids_file + new_ids_file)
 
     # solo a INFO si hay nuevas; si no, a DEBUG
     if new_urls:

@@ -5,6 +5,7 @@ import urllib.request
 
 APPLICATION_MODULES = (
     "main",
+    "scrapyrealestate.atomic_files",
     "scrapyrealestate.flask_server",
     "scrapyrealestate.items",
     "scrapyrealestate.legacy_config",
