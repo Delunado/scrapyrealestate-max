@@ -57,6 +57,22 @@ def test_channel_reads_mask_secrets_recursively(repository):
     assert "top-secret" in stored
 
 
+def test_delivery_channel_read_is_explicit_and_repr_safe(repository):
+    notifications, _, search_id, _ = repository
+    channel = notifications.create_channel(
+        "Telegram",
+        NotificationProvider.TELEGRAM,
+        config={"chat_id": "123"},
+        secret_config={"bot_token": "top-secret"},
+    )
+    notifications.assign_channel(search_id, channel.id)
+
+    (delivery_config,) = notifications.delivery_channels_for_search(search_id)
+
+    assert delivery_config.secret_config == {"bot_token": "top-secret"}
+    assert "top-secret" not in repr(delivery_config)
+
+
 def test_channel_assignment_is_idempotent(repository):
     notifications, _, search_id, _ = repository
     channel = notifications.create_channel("ntfy", NotificationProvider.NTFY)

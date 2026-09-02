@@ -7,6 +7,10 @@ from scrapyrealestate.notifiers.base import (
 )
 from scrapyrealestate.notifiers.formatting import NotificationMessage, format_notification
 from scrapyrealestate.notifiers.ntfy import NtfyConfig, NtfyNotifier
+from scrapyrealestate.notifiers.registry import (
+    NotifierRegistry,
+    build_default_notifier_registry,
+)
 from scrapyrealestate.notifiers.telegram import TelegramConfig, TelegramNotifier
 from scrapyrealestate.notifiers.webhook import (
     WEBHOOK_SCHEMA_VERSION,
@@ -20,6 +24,7 @@ __all__ = [
     "NotificationMessage",
     "Notifier",
     "NotifierConfigurationError",
+    "NotifierRegistry",
     "NtfyConfig",
     "NtfyNotifier",
     "TelegramConfig",
@@ -28,5 +33,6 @@ __all__ = [
     "WebhookConfig",
     "WebhookNotifier",
     "build_webhook_payload",
+    "build_default_notifier_registry",
     "format_notification",
 ]

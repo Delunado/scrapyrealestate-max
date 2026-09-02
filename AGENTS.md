@@ -130,7 +130,12 @@ infrastructure without a concrete requirement and an explicit update to
   bounded timeout; response bodies and exception text never enter diagnostics.
   `notifiers/webhook.py` posts a stable `1.0` JSON envelope to an HTTP(S) endpoint,
   supports an optional secret `Authorization` value, and follows the same timeout
-  and safe-diagnostic rules.
+  and safe-diagnostic rules. `notifiers/registry.py` builds these adapters from
+  persisted channel configuration. `services/notification_routing.py` applies the
+  originating search's event preferences and routes only to its enabled assigned
+  channels, isolating configuration/provider failures per channel. Raw credentials
+  are exposed only by the explicitly delivery-scoped repository read and remain
+  excluded from object representations.
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: current first-run-only Flask
   server. It writes `data/config.json`; `main.py` then terminates it.
 - `scrapyrealestate/scrapyrealestate/templates/`: current unstyled first-run form

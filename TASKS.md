@@ -103,7 +103,7 @@ than code complexity.
 - [x] **Medium** — Move Telegram delivery and message formatting behind the notifier interface using only user-supplied configuration.
 - [x] **Medium** — Implement an ntfy notifier with configurable server/topic/auth, HTTP timeouts, safe error handling, and mocked tests.
 - [x] **Medium** — Implement a generic HTTP webhook notifier with a versioned JSON payload, optional authorization header, timeouts, and mocked tests.
-- [ ] **Medium** — Add a notifier registry/router that sends an event only to enabled channels assigned to the originating search.
+- [x] **Medium** — Add a notifier registry/router that sends an event only to enabled channels assigned to the originating search.
 - [ ] **Hard** — Implement durable delivery claiming, success/failure recording, bounded retry/backoff, and restart-safe duplicate prevention.
 - [ ] **Easy** — Add redaction tests proving Telegram, ntfy, and webhook secrets never appear in logs, status data, template context, or exception strings.
 - [ ] **Medium** — Switch search orchestration from direct Telegram calls to persisted provider-neutral events and notifier routing.

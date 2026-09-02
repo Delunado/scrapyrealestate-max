@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import StrEnum
 from typing import Any
@@ -42,6 +42,17 @@ class NotificationChannelRecord:
     enabled: bool
     created_at: str
     updated_at: str
+
+
+@dataclass(frozen=True, slots=True)
+class NotificationChannelDeliveryConfig:
+    """Credential-bearing channel view available only to delivery services."""
+
+    id: int
+    name: str
+    provider: NotificationProvider
+    config: dict[str, Any]
+    secret_config: dict[str, Any] = field(repr=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -192,6 +203,25 @@ class NotificationRepository:
             (search_id,),
         ).fetchall()
         return tuple(_channel_record(row) for row in rows)
+
+    def delivery_channels_for_search(
+        self, search_id: int
+    ) -> tuple[NotificationChannelDeliveryConfig, ...]:
+        """Return enabled assigned channels, including delivery credentials.
+
+        Normal reads stay masked. This deliberately named method is the sole
+        repository boundary through which the router obtains raw credentials.
+        """
+        rows = self.connection.execute(
+            """
+            SELECT c.* FROM notification_channels AS c
+            JOIN search_notification_channels AS sc ON sc.channel_id = c.id
+            WHERE sc.search_id = ? AND c.enabled = 1
+            ORDER BY c.name COLLATE NOCASE, c.id
+            """,
+            (search_id,),
+        ).fetchall()
+        return tuple(_delivery_channel_config(row) for row in rows)
 
     def preferences_for_search(self, search_id: int) -> NotificationPreferences:
         if not self._search_exists(search_id):
@@ -347,6 +377,18 @@ def _event_record(row: sqlite3.Row) -> NotificationEventRecord:
         payload=json.loads(row["payload_json"]),
         occurred_at=row["occurred_at"],
         created_at=row["created_at"],
+    )
+
+
+def _delivery_channel_config(
+    row: sqlite3.Row,
+) -> NotificationChannelDeliveryConfig:
+    return NotificationChannelDeliveryConfig(
+        id=row["id"],
+        name=row["name"],
+        provider=NotificationProvider(row["provider"]),
+        config=json.loads(row["config_json"]),
+        secret_config=json.loads(row["secret_config_json"]),
     )
 
 
