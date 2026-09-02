@@ -29,6 +29,11 @@ class YaencontreAdapter(BasePortalAdapter):
         ),
     )
 
+    _TRANSACTION_SEGMENTS: ClassVar[dict[TransactionType, str]] = {
+        TransactionType.BUY: "comprar",
+        TransactionType.RENT: "alquiler",
+    }
+
     def _transaction_type(self, raw_url: str) -> TransactionType | None:
         # Mirrors YaencontreSpider.parse, which checks substrings anywhere in
         # the URL rather than a fixed path segment.
@@ -41,3 +46,10 @@ class YaencontreAdapter(BasePortalAdapter):
     def _apply_recent_sort(self, raw_url: str) -> str:
         # Matches the legacy suffix in main.py.
         return f"{raw_url}/o-recientes"
+
+    def _build_search_url(self, transaction_type: TransactionType, location_slug: str) -> str:
+        # e.g. https://www.yaencontre.com/comprar/pisos/madrid, matching the
+        # "<segment>/pisos/<location>" shape used by every raw search URL
+        # fixture in this codebase.
+        segment = self._TRANSACTION_SEGMENTS[transaction_type]
+        return f"https://www.yaencontre.com/{segment}/pisos/{location_slug}"

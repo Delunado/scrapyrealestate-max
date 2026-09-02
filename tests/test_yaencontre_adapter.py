@@ -2,6 +2,7 @@ import pytest
 from scrapy.http import HtmlResponse, Request
 
 from scrapyrealestate.domain.legacy_mapper import map_legacy_item
+from scrapyrealestate.domain.search import NormalizedSearch, SearchFilters
 from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.portals.base import PortalRequest, PortalRequestError, PortalTransport
 from scrapyrealestate.portals.yaencontre import YaencontreAdapter
@@ -45,6 +46,44 @@ def test_yaencontre_build_request_rejects_wrong_domain():
 def test_yaencontre_build_request_rejects_unknown_transaction_section():
     with pytest.raises(PortalRequestError, match="transaction type"):
         YaencontreAdapter().build_request("https://www.yaencontre.com/traspaso/pisos/madrid")
+
+
+@pytest.mark.parametrize(
+    ("transaction_type", "expected_url"),
+    [
+        (
+            TransactionType.RENT,
+            "https://www.yaencontre.com/alquiler/pisos/madrid/o-recientes",
+        ),
+        (
+            TransactionType.BUY,
+            "https://www.yaencontre.com/comprar/pisos/madrid/o-recientes",
+        ),
+    ],
+)
+def test_yaencontre_builds_request_from_normalized_search(transaction_type, expected_url):
+    search = NormalizedSearch(
+        name="Madrid",
+        transaction_type=transaction_type,
+        filters=SearchFilters(location="Madrid"),
+    )
+
+    request = YaencontreAdapter().build_request_from_search(search)
+
+    assert request == PortalRequest(
+        portal=PortalKey.YAENCONTRE,
+        spider_name="yaencontre",
+        start_url=expected_url,
+        transaction_type=transaction_type,
+        raw_url=expected_url.removesuffix("/o-recientes"),
+    )
+
+
+def test_yaencontre_build_request_from_search_requires_a_location():
+    search = NormalizedSearch(name="No location", transaction_type=TransactionType.BUY)
+
+    with pytest.raises(PortalRequestError, match="location filter is required"):
+        YaencontreAdapter().build_request_from_search(search)
 
 
 SEARCH_URL = "https://www.yaencontre.com/alquiler/pisos/madrid/o-recientes"
