@@ -49,6 +49,33 @@ class FakeSearchSource:
             return self.records
         return tuple(record for record in self.records if record.enabled is enabled)
 
+    def update_scheduler_state(
+        self, search_id, *, next_run_at, last_scheduled_at
+    ):
+        updated = None
+        records = []
+        for record in self.records:
+            if record.id == search_id:
+                updated = replace(
+                    record,
+                    schedule=replace(
+                        record.schedule,
+                        next_run_at=next_run_at.isoformat().replace("+00:00", "Z"),
+                        last_scheduled_at=(
+                            last_scheduled_at.isoformat().replace("+00:00", "Z")
+                            if last_scheduled_at is not None
+                            else None
+                        ),
+                    ),
+                )
+                records.append(updated)
+            else:
+                records.append(record)
+        if updated is None:
+            raise LookupError(search_id)
+        self.records = tuple(records)
+        return updated
+
 
 class RecordingExecutor:
     def __init__(self):
@@ -83,6 +110,50 @@ def test_due_search_uses_scheduled_orchestration_trigger_and_is_rescheduled():
     assert executor.calls[0][0].id == 1
     assert executor.calls[0][1] is TriggerKind.SCHEDULED
     assert scheduler.next_run_times[1] == current[0] + timedelta(seconds=600)
+
+
+def test_restart_preserves_a_persisted_future_deadline():
+    persisted = (NOW + timedelta(minutes=3)).isoformat().replace("+00:00", "Z")
+    record = replace(
+        _record(1),
+        schedule=SearchScheduleRecord(
+            interval_seconds=600,
+            next_run_at=persisted,
+        ),
+    )
+    source = FakeSearchSource((record,))
+
+    first = InProcessScheduler(source, RecordingExecutor(), clock=lambda: NOW)
+    second = InProcessScheduler(source, RecordingExecutor(), clock=lambda: NOW)
+
+    assert first.refresh()[1] == NOW + timedelta(minutes=3)
+    assert second.refresh()[1] == NOW + timedelta(minutes=3)
+
+
+def test_missed_deadline_runs_once_and_persists_recovery_state():
+    missed = NOW - timedelta(minutes=5)
+    record = replace(
+        _record(1),
+        schedule=SearchScheduleRecord(
+            interval_seconds=600,
+            next_run_at=missed.isoformat().replace("+00:00", "Z"),
+        ),
+    )
+    source = FakeSearchSource((record,))
+    executor = RecordingExecutor()
+    scheduler = InProcessScheduler(source, executor, clock=lambda: NOW)
+
+    scheduler.refresh()
+
+    assert scheduler.run_due() == (1,)
+    assert scheduler.run_due() == ()
+    assert len(executor.calls) == 1
+    assert source.records[0].schedule.last_scheduled_at == missed.isoformat().replace(
+        "+00:00", "Z"
+    )
+    assert source.records[0].schedule.next_run_at == (
+        NOW + timedelta(minutes=10)
+    ).isoformat().replace("+00:00", "Z")
 
 
 def test_schedule_change_wakes_worker_without_periodic_polling():

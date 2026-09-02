@@ -189,6 +189,30 @@ class SearchRepository:
         self._raise_update_error(search_id, cursor.rowcount)
         return self.get(search_id)
 
+    def update_scheduler_state(
+        self,
+        search_id: int,
+        *,
+        next_run_at: datetime,
+        last_scheduled_at: datetime | None,
+    ) -> SearchRecord:
+        """Persist scheduler-owned UTC state without changing the interval."""
+        cursor = self.connection.execute(
+            """
+            UPDATE search_schedules
+            SET next_run_at = ?, last_scheduled_at = ?, updated_at = ?
+            WHERE search_id = ?
+            """,
+            (
+                _timestamp(next_run_at),
+                _optional_timestamp(last_scheduled_at),
+                _utc_now(),
+                search_id,
+            ),
+        )
+        self._raise_update_error(search_id, cursor.rowcount)
+        return self.get(search_id)
+
     def replace_portals(
         self, search_id: int, portals: tuple[SearchPortalRecord, ...]
     ) -> SearchRecord:
@@ -290,3 +314,17 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace(
         "+00:00", "Z"
     )
+
+
+def _timestamp(value: datetime) -> str:
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError("scheduler timestamps must be timezone-aware")
+    return (
+        value.astimezone(timezone.utc)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
+
+
+def _optional_timestamp(value: datetime | None) -> str | None:
+    return _timestamp(value) if value is not None else None

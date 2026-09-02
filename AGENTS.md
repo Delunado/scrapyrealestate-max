@@ -154,6 +154,10 @@ infrastructure without a concrete requirement and an explicit update to
   nearest deadline, and reloads immediately when `notify_schedule_changed()` is
   called instead of periodically polling SQLite. Scheduled work calls the same
   `run_search(search_record, trigger)` orchestration boundary used elsewhere.
+  Deadlines and the last scheduled instant are stored in `search_schedules` through
+  `SearchRepository.update_scheduler_state`; a restart preserves a future deadline,
+  while one missed deadline runs once immediately and advances from the recovery
+  time rather than replaying every missed interval.
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: Flask application factory
   with per-application runtime paths and injected repository/service containers.
   The factory remains available independently of `config.json`; during the

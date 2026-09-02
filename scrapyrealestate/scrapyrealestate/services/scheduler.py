@@ -22,6 +22,14 @@ class SearchSource(Protocol):
 
     def list(self, *, enabled: bool | None = None) -> tuple[SearchRecord, ...]: ...
 
+    def update_scheduler_state(
+        self,
+        search_id: int,
+        *,
+        next_run_at: datetime,
+        last_scheduled_at: datetime | None,
+    ) -> SearchRecord: ...
+
 
 class SearchExecutor(Protocol):
     """Shared orchestration boundary used by scheduled and manual runs."""
@@ -60,6 +68,7 @@ class InProcessScheduler:
         self._condition = threading.Condition()
         self._entries: dict[int, _ScheduledEntry] = {}
         self._reload_requested = True
+        self._recompute_requested = False
         self._stop_requested = False
         self._thread: threading.Thread | None = None
 
@@ -85,6 +94,7 @@ class InProcessScheduler:
                 raise RuntimeError("scheduler is already running")
             self._stop_requested = False
             self._reload_requested = True
+            self._recompute_requested = False
             self._thread = threading.Thread(
                 target=self.run_forever,
                 name="scrapyrealestate-scheduler",
@@ -109,6 +119,7 @@ class InProcessScheduler:
         """Reload enabled searches and recompute deadlines without polling."""
         with self._condition:
             self._reload_requested = True
+            self._recompute_requested = True
             self._condition.notify_all()
 
     def refresh(self, *, reset: bool = False) -> Mapping[int, datetime]:
@@ -121,16 +132,21 @@ class InProcessScheduler:
         now = _as_utc(self._clock())
         records = self._searches.list(enabled=True)
         with self._condition:
-            previous = self._entries
             refreshed: dict[int, _ScheduledEntry] = {}
             for record in records:
                 interval = _interval(record)
-                existing = previous.get(record.id)
-                fingerprint = (record.version, interval)
-                if reset or existing is None or existing.fingerprint != fingerprint:
+                persisted = _optional_utc(record.schedule.next_run_at)
+                if reset or persisted is None:
                     next_run_at = now + timedelta(seconds=interval)
+                    record = self._searches.update_scheduler_state(
+                        record.id,
+                        next_run_at=next_run_at,
+                        last_scheduled_at=_optional_utc(
+                            record.schedule.last_scheduled_at
+                        ),
+                    )
                 else:
-                    next_run_at = existing.next_run_at
+                    next_run_at = persisted
                 refreshed[record.id] = _ScheduledEntry(record, next_run_at)
             self._entries = refreshed
             return MappingProxyType(
@@ -159,12 +175,18 @@ class InProcessScheduler:
                 if entry is None or entry.next_run_at > now:
                     continue
                 interval = _interval(entry.search)
+                next_run_at = now + timedelta(seconds=interval)
+                updated_search = self._searches.update_scheduler_state(
+                    search_id,
+                    next_run_at=next_run_at,
+                    last_scheduled_at=entry.next_run_at,
+                )
                 self._entries[search_id] = _ScheduledEntry(
-                    entry.search,
-                    now + timedelta(seconds=interval),
+                    updated_search,
+                    next_run_at,
                 )
             try:
-                self._executor.run_search(entry.search, TriggerKind.SCHEDULED)
+                self._executor.run_search(updated_search, TriggerKind.SCHEDULED)
             except Exception:
                 # One search must not terminate scheduling for every other search.
                 logger.error("scheduled search %s failed", search_id)
@@ -178,10 +200,12 @@ class InProcessScheduler:
                 if self._stop_requested:
                     return
                 reload_requested = self._reload_requested
+                recompute_requested = self._recompute_requested
                 self._reload_requested = False
+                self._recompute_requested = False
 
             if reload_requested:
-                self.refresh(reset=True)
+                self.refresh(reset=recompute_requested)
 
             self.run_due()
 
@@ -211,3 +235,15 @@ def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError("scheduler clock must return a timezone-aware datetime")
     return value.astimezone(timezone.utc)
+
+
+def _optional_utc(value: str | None) -> datetime | None:
+    if value is None:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    return parsed.astimezone(timezone.utc)

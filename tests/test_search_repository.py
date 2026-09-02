@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -78,6 +79,33 @@ def test_update_enable_schedule_and_portals(repository):
     assert portals.portals[0].enabled is False
     assert portals.version == 4
     assert repository.list(enabled=True) == ()
+
+
+def test_update_scheduler_state_persists_utc_activity_without_changing_interval(
+    repository,
+):
+    record = repository.create(_search(), interval_seconds=600)
+
+    scheduled = repository.update_scheduler_state(
+        record.id,
+        next_run_at=datetime(2026, 9, 3, 12, 0, tzinfo=timezone.utc),
+        last_scheduled_at=datetime(2026, 9, 3, 11, 50, tzinfo=timezone.utc),
+    )
+
+    assert scheduled.schedule.interval_seconds == 600
+    assert scheduled.schedule.next_run_at == "2026-09-03T12:00:00.000Z"
+    assert scheduled.schedule.last_scheduled_at == "2026-09-03T11:50:00.000Z"
+
+
+def test_update_scheduler_state_rejects_naive_timestamps(repository):
+    record = repository.create(_search(), interval_seconds=600)
+
+    with pytest.raises(ValueError, match="timezone-aware"):
+        repository.update_scheduler_state(
+            record.id,
+            next_run_at=datetime(2026, 9, 3, 12, 0),
+            last_scheduled_at=None,
+        )
 
 
 def test_update_rejects_stale_version(repository):
