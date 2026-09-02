@@ -135,7 +135,13 @@ infrastructure without a concrete requirement and an explicit update to
   originating search's event preferences and routes only to its enabled assigned
   channels, isolating configuration/provider failures per channel. Raw credentials
   are exposed only by the explicitly delivery-scoped repository read and remain
-  excluded from object representations.
+  excluded from object representations. `services/notification_delivery.py` is the
+  durable path: it idempotently creates one initial event/channel attempt, acquires
+  an atomic token/lease claim, hydrates and sends the event, records success or a
+  bounded failure diagnostic, and schedules at most three exponential-backoff
+  attempts by default. Successful pairs are never claimable again; an expired
+  in-flight lease is reclaimable after restart (external providers remain
+  inherently at-least-once if a process dies after sending but before recording).
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: current first-run-only Flask
   server. It writes `data/config.json`; `main.py` then terminates it.
 - `scrapyrealestate/scrapyrealestate/templates/`: current unstyled first-run form

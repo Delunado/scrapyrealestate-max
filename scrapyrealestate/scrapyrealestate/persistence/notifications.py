@@ -4,15 +4,18 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 from typing import Any
 
 from scrapyrealestate.domain.notification import (
+    NotificationEvent,
     NotificationEventType,
     NotificationPreferences,
 )
+from scrapyrealestate.domain.values import PortalKey
 from scrapyrealestate.persistence.database import transaction
 
 
@@ -86,6 +89,24 @@ class DeliveryAttemptRecord:
     redacted_diagnostic: str | None
     provider_message_id: str | None
     created_at: str
+    available_at: str
+    lease_expires_at: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class ClaimedDelivery:
+    attempt: DeliveryAttemptRecord
+    claim_token: str = field(repr=False)
+
+
+@dataclass(frozen=True, slots=True)
+class DeliveryCompletion:
+    attempt: DeliveryAttemptRecord
+    retry: DeliveryAttemptRecord | None = None
+
+
+class StaleDeliveryClaimError(RuntimeError):
+    """A worker tried to finish a claim it no longer owns."""
 
 
 class NotificationRepository:
@@ -223,6 +244,16 @@ class NotificationRepository:
         ).fetchall()
         return tuple(_delivery_channel_config(row) for row in rows)
 
+    def delivery_channel(
+        self, channel_id: int
+    ) -> NotificationChannelDeliveryConfig:
+        row = self.connection.execute(
+            "SELECT * FROM notification_channels WHERE id = ?", (channel_id,)
+        ).fetchone()
+        if row is None:
+            raise LookupError(f"notification channel {channel_id} does not exist")
+        return _delivery_channel_config(row)
+
     def preferences_for_search(self, search_id: int) -> NotificationPreferences:
         if not self._search_exists(search_id):
             raise LookupError(f"search {search_id} does not exist")
@@ -308,16 +339,83 @@ class NotificationRepository:
         ).fetchone()
         return EventCreationResult(_event_record(row), bool(cursor.rowcount))
 
+    def event_for_delivery(self, event_id: int) -> NotificationEvent:
+        row = self.connection.execute(
+            """
+            SELECT e.*, s.name AS search_name,
+                   l.portal_key, l.title AS listing_title, l.canonical_url,
+                   l.price_euros AS listing_price_euros, l.area_sqm, l.rooms,
+                   l.location, l.neighbourhood
+            FROM notification_events AS e
+            JOIN searches AS s ON s.id = e.search_id
+            LEFT JOIN listings AS l ON l.id = e.listing_id
+            WHERE e.id = ?
+            """,
+            (event_id,),
+        ).fetchone()
+        if row is None:
+            raise LookupError(f"notification event {event_id} does not exist")
+        payload = json.loads(row["payload_json"])
+        return NotificationEvent(
+            id=row["id"],
+            search_id=row["search_id"],
+            search_name=row["search_name"],
+            event_type=NotificationEventType(row["event_type"]),
+            occurred_at=_parse_timestamp(row["occurred_at"]),
+            listing_id=row["listing_id"],
+            listing_title=row["listing_title"],
+            portal=PortalKey(row["portal_key"]) if row["portal_key"] else None,
+            canonical_url=row["canonical_url"],
+            price_euros=_payload_integer(
+                payload, "price_euros", row["listing_price_euros"]
+            ),
+            previous_price_euros=_payload_integer(
+                payload, "previous_price_euros", None
+            ),
+            area_sqm=row["area_sqm"],
+            rooms=row["rooms"],
+            location=row["location"],
+            neighbourhood=row["neighbourhood"],
+        )
+
+    def ensure_event_deliveries(
+        self, event_id: int, *, available_at: datetime | None = None
+    ) -> tuple[DeliveryAttemptRecord, ...]:
+        event_row = self.connection.execute(
+            "SELECT * FROM notification_events WHERE id = ?", (event_id,)
+        ).fetchone()
+        if event_row is None:
+            raise LookupError(f"notification event {event_id} does not exist")
+        search_id = event_row["search_id"]
+        event_type = NotificationEventType(event_row["event_type"])
+        if not self.preferences_for_search(search_id).is_enabled(event_type):
+            return ()
+        attempts = []
+        for channel in self.delivery_channels_for_search(search_id):
+            attempt, _ = self.ensure_delivery_attempt(
+                event_id,
+                channel.id,
+                available_at=available_at,
+            )
+            attempts.append(attempt)
+        return tuple(attempts)
+
     def ensure_delivery_attempt(
-        self, event_id: int, channel_id: int, *, attempt_number: int = 1
+        self,
+        event_id: int,
+        channel_id: int,
+        *,
+        attempt_number: int = 1,
+        available_at: datetime | None = None,
     ) -> tuple[DeliveryAttemptRecord, bool]:
+        available = _timestamp(available_at or datetime.now(timezone.utc))
         cursor = self.connection.execute(
             """
             INSERT INTO notification_delivery_attempts (
-                event_id, channel_id, attempt_number
-            ) VALUES (?, ?, ?) ON CONFLICT DO NOTHING
+                event_id, channel_id, attempt_number, available_at
+            ) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING
             """,
-            (event_id, channel_id, attempt_number),
+            (event_id, channel_id, attempt_number, available),
         )
         row = self.connection.execute(
             """
@@ -327,6 +425,141 @@ class NotificationRepository:
             (event_id, channel_id, attempt_number),
         ).fetchone()
         return _delivery_record(row), bool(cursor.rowcount)
+
+    def claim_next_delivery(
+        self,
+        now: datetime,
+        *,
+        lease_seconds: float = 60.0,
+        claim_token: str | None = None,
+    ) -> ClaimedDelivery | None:
+        if (
+            isinstance(lease_seconds, bool)
+            or not isinstance(lease_seconds, (int, float))
+            or lease_seconds <= 0
+            or lease_seconds > 3600
+        ):
+            raise ValueError("lease_seconds must be between 0 and 3600")
+        current = _timestamp(now)
+        lease_expires = _timestamp(now + timedelta(seconds=lease_seconds))
+        token = claim_token or uuid.uuid4().hex
+        if not token.strip():
+            raise ValueError("claim_token must not be empty")
+        with transaction(self.connection, immediate=True):
+            row = self.connection.execute(
+                """
+                SELECT a.id
+                FROM notification_delivery_attempts AS a
+                JOIN notification_events AS e ON e.id = a.event_id
+                JOIN notification_channels AS c ON c.id = a.channel_id
+                JOIN search_notification_channels AS sc
+                  ON sc.search_id = e.search_id AND sc.channel_id = a.channel_id
+                WHERE c.enabled = 1
+                  AND (
+                    (a.status = 'pending' AND datetime(a.available_at) <= datetime(?))
+                    OR (
+                        a.status = 'claimed'
+                        AND datetime(a.lease_expires_at) <= datetime(?)
+                    )
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1 FROM notification_delivery_attempts AS succeeded
+                    WHERE succeeded.event_id = a.event_id
+                      AND succeeded.channel_id = a.channel_id
+                      AND succeeded.status = 'succeeded'
+                  )
+                ORDER BY datetime(a.available_at), a.id
+                LIMIT 1
+                """,
+                (current, current),
+            ).fetchone()
+            if row is None:
+                return None
+            self.connection.execute(
+                """
+                UPDATE notification_delivery_attempts
+                SET status = 'claimed', claimed_at = ?, completed_at = NULL,
+                    error_category = NULL, redacted_diagnostic = NULL,
+                    provider_message_id = NULL, claim_token = ?, lease_expires_at = ?
+                WHERE id = ?
+                """,
+                (current, token, lease_expires, row["id"]),
+            )
+            claimed_row = self.connection.execute(
+                "SELECT * FROM notification_delivery_attempts WHERE id = ?",
+                (row["id"],),
+            ).fetchone()
+        return ClaimedDelivery(_delivery_record(claimed_row), token)
+
+    def complete_delivery(
+        self,
+        claim: ClaimedDelivery,
+        *,
+        success: bool,
+        completed_at: datetime,
+        error_category: str | None = None,
+        diagnostic: str | None = None,
+        provider_message_id: str | None = None,
+        max_attempts: int = 3,
+        base_backoff_seconds: float = 30.0,
+        max_backoff_seconds: float = 900.0,
+    ) -> DeliveryCompletion:
+        _validate_retry_policy(max_attempts, base_backoff_seconds, max_backoff_seconds)
+        completed = _timestamp(completed_at)
+        if success:
+            error_category = None
+            diagnostic = None
+        elif not error_category or not error_category.strip():
+            raise ValueError("failed delivery requires an error category")
+        diagnostic = _bounded_diagnostic(diagnostic)
+
+        with transaction(self.connection, immediate=True):
+            row = self.connection.execute(
+                "SELECT * FROM notification_delivery_attempts WHERE id = ?",
+                (claim.attempt.id,),
+            ).fetchone()
+            if (
+                row is None
+                or row["status"] != DeliveryStatus.CLAIMED.value
+                or row["claim_token"] != claim.claim_token
+            ):
+                raise StaleDeliveryClaimError("delivery claim is stale or no longer owned")
+            status = DeliveryStatus.SUCCEEDED if success else DeliveryStatus.FAILED
+            self.connection.execute(
+                """
+                UPDATE notification_delivery_attempts
+                SET status = ?, completed_at = ?, error_category = ?,
+                    redacted_diagnostic = ?, provider_message_id = ?,
+                    claim_token = NULL, lease_expires_at = NULL
+                WHERE id = ?
+                """,
+                (
+                    status.value,
+                    completed,
+                    error_category.strip() if error_category else None,
+                    diagnostic,
+                    provider_message_id,
+                    row["id"],
+                ),
+            )
+            retry = None
+            if not success and row["attempt_number"] < max_attempts:
+                delay = min(
+                    max_backoff_seconds,
+                    base_backoff_seconds * (2 ** (row["attempt_number"] - 1)),
+                )
+                retry_at = completed_at + timedelta(seconds=delay)
+                retry, _ = self.ensure_delivery_attempt(
+                    row["event_id"],
+                    row["channel_id"],
+                    attempt_number=row["attempt_number"] + 1,
+                    available_at=retry_at,
+                )
+            completed_row = self.connection.execute(
+                "SELECT * FROM notification_delivery_attempts WHERE id = ?",
+                (row["id"],),
+            ).fetchone()
+        return DeliveryCompletion(_delivery_record(completed_row), retry)
 
     def create_retry(
         self, event_id: int, channel_id: int
@@ -405,6 +638,8 @@ def _delivery_record(row: sqlite3.Row) -> DeliveryAttemptRecord:
         redacted_diagnostic=row["redacted_diagnostic"],
         provider_message_id=row["provider_message_id"],
         created_at=row["created_at"],
+        available_at=row["available_at"],
+        lease_expires_at=row["lease_expires_at"],
     )
 
 
@@ -439,3 +674,41 @@ def _timestamp(value: datetime) -> str:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _parse_timestamp(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+
+
+def _payload_integer(payload: dict[str, Any], key: str, fallback: Any) -> int | None:
+    value = payload.get(key, fallback)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return fallback
+    return value
+
+
+def _bounded_diagnostic(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    return cleaned[:2000] or None
+
+
+def _validate_retry_policy(
+    max_attempts: int,
+    base_backoff_seconds: float,
+    max_backoff_seconds: float,
+) -> None:
+    if (
+        isinstance(max_attempts, bool)
+        or not isinstance(max_attempts, int)
+        or not 1 <= max_attempts <= 10
+    ):
+        raise ValueError("max_attempts must be between 1 and 10")
+    for value in (base_backoff_seconds, max_backoff_seconds):
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError("retry backoff values must be numeric")
+    if base_backoff_seconds <= 0 or max_backoff_seconds <= 0:
+        raise ValueError("retry backoff values must be positive")
+    if base_backoff_seconds > max_backoff_seconds:
+        raise ValueError("base backoff cannot exceed maximum backoff")

@@ -568,3 +568,41 @@ def test_notification_preferences_enforce_per_search_boolean_selection(
     assert migrated_connection.execute(
         "SELECT count(*) FROM search_notification_preferences"
     ).fetchone()[0] == 0
+
+
+def test_delivery_claim_schema_supports_leases_and_scheduled_retries(
+    migrated_connection,
+):
+    search_id = _insert_search(migrated_connection)
+    channel_id = _insert_channel(migrated_connection)
+    event_id = migrated_connection.execute(
+        """
+        INSERT INTO notification_events (
+            search_id, event_type, deduplication_key, occurred_at
+        ) VALUES (?, 'new_listing', 'claim-schema', '2026-01-01T10:00:00Z')
+        RETURNING id
+        """,
+        (search_id,),
+    ).fetchone()[0]
+    migrated_connection.execute(
+        """
+        INSERT INTO notification_delivery_attempts (
+            event_id, channel_id, available_at, status, claimed_at,
+            claim_token, lease_expires_at
+        ) VALUES (?, ?, '2026-01-01T10:01:00Z', 'claimed',
+                  '2026-01-01T10:01:01Z', 'claim-1', '2026-01-01T10:02:01Z')
+        """,
+        (event_id, channel_id),
+    )
+
+    with pytest.raises(sqlite3.IntegrityError):
+        migrated_connection.execute(
+            """
+            INSERT INTO notification_delivery_attempts (
+                event_id, channel_id, attempt_number, available_at, status,
+                claimed_at, claim_token, lease_expires_at
+            ) VALUES (?, ?, 2, '2026-01-01T10:01:00Z', 'claimed',
+                      '2026-01-01T10:01:01Z', 'claim-1', '2026-01-01T10:02:01Z')
+            """,
+            (event_id, channel_id),
+        )

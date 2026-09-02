@@ -17,6 +17,9 @@ from scrapyrealestate.persistence.migrations.v009_legacy_import_reports import (
 from scrapyrealestate.persistence.migrations.v010_notification_preferences import (
     apply as apply_v010,
 )
+from scrapyrealestate.persistence.migrations.v011_delivery_claims import (
+    apply as apply_v011,
+)
 
 
 MIGRATIONS: tuple[Migration, ...] = (
@@ -30,6 +33,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(8, "portal_unscoped_legacy_seen_ids", apply_v008),
     Migration(9, "legacy_import_reports", apply_v009),
     Migration(10, "search_notification_preferences", apply_v010),
+    Migration(11, "notification_delivery_claims", apply_v011),
 )
 
 __all__ = ["MIGRATIONS", "Migration", "MigrationRunner"]
