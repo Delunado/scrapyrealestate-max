@@ -154,6 +154,8 @@ infrastructure without a concrete requirement and an explicit update to
   The factory remains available independently of `config.json`; during the
   transition, its legacy form still writes `data/config.json` and `main.py` still
   launches and terminates the direct-script server around first-run configuration.
+  `/healthz` is process liveness; `/readyz` uses only an optional injected local
+  readiness check and returns a generic response, never portal state or diagnostics.
 - `scrapyrealestate/scrapyrealestate/templates/`: current unstyled first-run form
   and confirmation page.
 - `scrapyrealestate/scrapyrealestate/proxies.py`: downloads public HTTPS proxies

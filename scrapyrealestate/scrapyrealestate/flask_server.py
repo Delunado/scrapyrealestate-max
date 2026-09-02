@@ -9,9 +9,10 @@ inject the repositories and services it owns.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Mapping
 
-from flask import Blueprint, Flask, current_app, render_template, request
+from flask import Blueprint, Flask, current_app, jsonify, render_template, request
 
 from scrapyrealestate.atomic_files import atomic_write_json
 from scrapyrealestate.runtime import RuntimePaths, get_runtime_paths
@@ -49,6 +50,7 @@ class WebServices:
     """Application services made available to request handlers."""
 
     orchestration: SearchOrchestrationService | None = None
+    readiness_check: Callable[[], bool] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +95,23 @@ def create_app(
 def get_web_context() -> WebApplicationContext:
     """Return the dependencies injected into the active Flask application."""
     return current_app.extensions[WEB_CONTEXT_EXTENSION]
+
+
+@routes.get("/healthz")
+def health():
+    """Report that the web process can serve requests."""
+    return jsonify(status="ok")
+
+
+@routes.get("/readyz")
+def readiness():
+    """Report local application readiness without probing external portals."""
+    readiness_check = get_web_context().services.readiness_check
+    try:
+        ready = readiness_check is None or readiness_check()
+    except Exception:
+        ready = False
+    return jsonify(status="ready" if ready else "not_ready"), 200 if ready else 503
 
 
 @routes.route("/")
