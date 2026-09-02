@@ -62,7 +62,7 @@ than code complexity.
 - [x] **Medium** — Implement disappearance/inactive detection scoped to successful search/portal runs so failed or blocked crawls never mark listings absent.
 - [x] **Medium** — Implement run/portal-attempt persistence and queries for latest status, duration, result counts, errors, and next scheduled execution.
 - [x] **Medium** — Implement notification channel/event/delivery repositories with masked secret reads and retry-safe uniqueness.
-- [ ] **Hard** — Build an idempotent legacy importer for `config.json` that creates a named search, portal selections, schedule, filters, and Telegram channel while preserving the source file.
+- [x] **Hard** — Build an idempotent legacy importer for `config.json` that creates a named search, portal selections, schedule, filters, and Telegram channel while preserving the source file.
 - [ ] **Hard** — Import `ids.json` into a conservative legacy-seen table, document its missing portal scope, and prevent repeat first-run floods without fabricating listing records.
 - [ ] **Easy** — Add a migration report/backup marker and tests proving reruns do not duplicate imported configuration or history.
 
