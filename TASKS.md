@@ -92,9 +92,9 @@ than code complexity.
 - [x] **Medium** — Ensure one portal attempt failure is recorded and returned without raising out of the overall search run.
 - [x] **Medium** — Build a search orchestration service that resolves adapters, runs enabled portals, normalizes results, applies local filters, and records every attempt.
 - [x] **Hard** — Ingest a successful portal result transactionally into listings, search matches, active state, price history, and provider-neutral change events.
-- [ ] **Medium** — Preserve randomized portal order and introduce configurable, respectful inter-portal delays without slowing offline tests.
-- [ ] **Medium** — Add concurrency/locking guards that prevent overlapping executions of the same search while allowing independent searches to progress.
-- [ ] **Medium** — Add orchestration tests covering mixed portal success/failure, duplicate results, unknown filter values, and transactional rollback.
+- [x] **Medium** — Preserve randomized portal order and introduce configurable, respectful inter-portal delays without slowing offline tests.
+- [x] **Medium** — Add concurrency/locking guards that prevent overlapping executions of the same search while allowing independent searches to progress.
+- [x] **Medium** — Add orchestration tests covering mixed portal success/failure, duplicate results, unknown filter values, and transactional rollback.
 
 ## Phase 6 — Provider-neutral notifications
 

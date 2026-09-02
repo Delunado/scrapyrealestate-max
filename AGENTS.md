@@ -75,23 +75,46 @@ infrastructure without a concrete requirement and an explicit update to
 - `scrapyrealestate/scrapyrealestate/services/`: cross-cutting services built
   on `execution/` and `persistence/`, beside the legacy flow and not yet
   consumed by `main.py`. `services/search_orchestration.py`'s
-  `SearchOrchestrationService.run_search(search_record, trigger)` records one
-  `search_runs` row, then for every *enabled* `SearchPortalRecord` resolves
-  its adapter from the `PortalRegistry` (an unregistered portal key is
-  recorded as `UNAVAILABLE`, not raised), runs one attempt via
-  `execution.run_portal_attempt`, normalizes whatever it returned
-  (`adapter.normalize_result`, skipping any single malformed item rather
-  than failing the whole attempt), and keeps every listing that is not a
-  definite local non-match (`domain.filtering.evaluate_listing`; an
+  `SearchOrchestrationService.run_search(search_record, trigger)` first
+  acquires `services/locks.py`'s `SearchRunLock` for this search — a second
+  call for the same search while one is in flight raises
+  `SearchAlreadyRunningError` immediately, without creating a run record;
+  independent searches never wait on each other, since the lock is
+  per-search-id and process-local (in-memory, not a DB lock). It then
+  records one `search_runs` row and, for every *enabled*
+  `SearchPortalRecord` in randomized order (`random_source.shuffle`,
+  injectable for deterministic tests; defaults to a fresh `random.Random`)
+  separated by a configurable `inter_portal_delay_seconds` (default `0.0`
+  so offline tests stay instant; real deployments should pass a respectful
+  positive value), resolves its adapter from the `PortalRegistry` (an
+  unregistered portal key is recorded as `UNAVAILABLE`, not raised), runs
+  one attempt via `execution.run_portal_attempt`, normalizes whatever it
+  returned (`adapter.normalize_result`, skipping any single malformed item
+  rather than failing the whole attempt), and keeps every listing that is
+  not a definite local non-match (`domain.filtering.evaluate_listing`; an
   `unknown` outcome is kept, not excluded, so missing data never silently
-  narrows a search's results). Every attempt — success or failure — is
-  recorded through `RunRepository`, and so is the overall run: `SUCCESS`
-  when every attempted portal was conclusive (`success`/`empty`), `PARTIAL`
-  when only some were, `FAILED` when none were conclusive or no portal was
-  enabled at all. This service does not yet ingest matched listings into
-  `listings`/price history/search matches — that is a separate, later
-  `TASKS.md` item; it only produces the filtered, normalized listings that
-  step will consume.
+  narrows a search's results). A conclusive attempt's matched listings are
+  then handed to `services/ingestion.py`'s `IngestionService.ingest_attempt`,
+  which — as one SQLite transaction — upserts each listing and its
+  per-search match (`ListingMatchRepository.ingest_locked`), records a price
+  observation when a price is known (`PriceHistoryRepository`), raises
+  provider-neutral `new_listing`/`price_drop`/`price_increase`/`reappearance`
+  events (`NotificationRepository`), and reconciles which previously-active
+  listings on this portal were not seen this time
+  (`ListingMatchRepository.reconcile_portal_locked`). A listing-identity
+  conflict or any other ingestion failure rolls the whole batch back and is
+  recorded on that attempt as `error_category="ingestion_error"` — the
+  portal's own fetch `status` is left untouched, since the fetch itself
+  already succeeded — and never raises out of the run; the `ingest_locked`
+  / `reconcile_portal_locked` methods exist because `persistence/database.py`'s
+  `transaction()` does not support nesting, so `IngestionService` opens the
+  one outer transaction itself and calls the lock-free variants. Every
+  attempt — success, failure, or ingestion failure — is recorded through
+  `RunRepository` (including `new`/`changed` counts from `IngestionOutcome`
+  when ingestion ran), and so is the overall run: `SUCCESS` when every
+  attempted portal was conclusive (`success`/`empty`), `PARTIAL` when only
+  some were, `FAILED` when none were conclusive or no portal was enabled at
+  all — this status reflects portal fetch outcomes only, not ingestion.
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: current first-run-only Flask
   server. It writes `data/config.json`; `main.py` then terminates it.
 - `scrapyrealestate/scrapyrealestate/templates/`: current unstyled first-run form
@@ -506,8 +529,10 @@ or local editor files.
   permits.
 - Current raw URL suffix concatenation can duplicate slashes or query strings. URL
   construction belongs in adapters and requires tests.
-- Current notification and dedup writes are not atomic. SQLite ingestion and event
-  creation must be transactional before JSON state is retired.
+- SQLite listing ingestion and event creation (`services/ingestion.py`) are
+  transactional today. The still-outstanding piece is Phase 6: routing those
+  persisted events to notifiers with durable delivery/retry, replacing the
+  legacy direct-Telegram, non-atomic JSON dedup path.
 - User-facing README, template, and runtime text is UTF-8 and has encoding regression
   coverage. Keep new text UTF-8 and do not mix broad wording cleanup into unrelated
   behavior tasks.
