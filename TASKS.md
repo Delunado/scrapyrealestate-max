@@ -68,7 +68,7 @@ than code complexity.
 
 ## Phase 4 — Portal adapter and registry architecture
 
-- [ ] **Medium** — Define the portal adapter interface and metadata contract for identity, domains, spider, transaction types, browser requirement, capabilities, request building, and result normalization.
+- [x] **Medium** — Define the portal adapter interface and metadata contract for identity, domains, spider, transaction types, browser requirement, capabilities, request building, and result normalization.
 - [ ] **Medium** — Implement a registry with duplicate-key/domain validation and lookup by stable portal key or normalized hostname.
 - [ ] **Medium** — Add the Pisos.com adapter around the existing spider, including URL validation, recent-sort construction, metadata, and contract tests.
 - [ ] **Medium** — Add the Habitaclia adapter around the existing spider, including URL validation, recent-sort construction, metadata, and contract tests.

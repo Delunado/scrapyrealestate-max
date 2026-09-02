@@ -34,6 +34,11 @@ infrastructure without a concrete requirement and an explicit update to
   secret-free migration reports.
 - `scrapyrealestate/scrapyrealestate/spiders/`: one spider module per portal plus
   the optional Idealista proxy variant.
+- `scrapyrealestate/scrapyrealestate/portals/`: the `PortalAdapter` interface and
+  `PortalMetadata`/`PortalRequest` contract (`base.py`), plus per-portal adapters
+  that validate a legacy raw search URL, build a recent-sort crawl request, and
+  normalize spider output around the existing spiders above. Not yet consumed by
+  `main.py`'s dispatcher.
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: current first-run-only Flask
   server. It writes `data/config.json`; `main.py` then terminates it.
 - `scrapyrealestate/scrapyrealestate/templates/`: current unstyled first-run form
@@ -171,11 +176,18 @@ spiders still emit `ScrapyrealestateItem`.
 
 ## Portal adapter conventions
 
-The adapter layer in `TASKS.md` will be introduced alongside the current dispatch
-before replacing it. Each adapter should declare a stable key, display name,
-domains, spider name, transaction types, browser requirement, operational caveats,
-and filters it can translate remotely. It should build/validate the portal request
-and normalize spider output.
+The adapter layer lives in `portals/` alongside the current dispatch in `main.py`;
+`main.py` keeps using its own domain `if/elif` chain until the dispatcher is
+replaced (a later `TASKS.md` item). `PortalAdapter` (`portals/base.py`) declares a
+stable key, display name, domains, spider name, transaction types, transport
+(`PortalTransport.HTTP` / `PLAYWRIGHT` / `ROTATING_PROXY_HTTP`, which also implies
+the browser requirement), operational caveats, a `degraded` flag for portals with
+no anti-bot bypass guarantee, and `FilterCapabilities`. `BasePortalAdapter` shares
+domain/transaction validation and recent-sort URL construction so each concrete
+adapter only supplies metadata plus its two portal-specific hooks; it also
+delegates result normalization to `map_legacy_item`. Until per-portal remote URL
+filter encoding exists (a later `TASKS.md` item), every adapter declares
+`ALL_LOCAL_CAPABILITIES` rather than guessing ahead of an actual request builder.
 
 Use a registry for lookup by stable key or hostname. Adding a portal must not add a
 new central `if/elif`. Explicitly report unsupported filters and distinguish:
