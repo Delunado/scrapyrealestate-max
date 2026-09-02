@@ -64,3 +64,7 @@ class RuntimePaths:
 def get_runtime_paths() -> RuntimePaths:
     """Return runtime paths using the current process environment and directory."""
     return RuntimePaths.from_environment()
+
+
+if __name__ == "__main__":
+    print(get_runtime_paths().data_dir)

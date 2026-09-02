@@ -1,6 +1,11 @@
 # Ajustes de Scrapy para scrapyrealestate.
 # https://docs.scrapy.org/en/latest/topics/settings.html
 
+from scrapyrealestate.runtime import get_runtime_paths
+
+
+runtime_paths = get_runtime_paths()
+
 BOT_NAME = 'scrapyrealestate'
 
 SPIDER_MODULES = ['scrapyrealestate.spiders']
@@ -50,7 +55,7 @@ ROBOTSTXT_OBEY = False
 def custom_headers(browser_type, playwright_request, scrapy_headers) -> dict:
     # User-Agent que escribe main.py; si aun no existe, uno por defecto.
     try:
-        with open("./data/useragent.txt", "r") as file:
+        with runtime_paths.user_agent_file.open("r") as file:
             useragent = file.read().strip()
     except FileNotFoundError:
         useragent = ""

@@ -1,7 +1,10 @@
 from flask import Flask, render_template, request
 import json
 
+from scrapyrealestate.runtime import get_runtime_paths
+
 app = Flask(__name__, template_folder='templates')
+runtime_paths = get_runtime_paths()
 
 
 @app.route('/')
@@ -17,7 +20,8 @@ def result():
         # Cada portal admite varias URLs: las recogemos como lista.
         for portal in ("url_idealista", "url_pisoscom", "url_fotocasa", "url_habitaclia", "url_yaencontre"):
             dict_form[portal] = request.form.getlist(portal)
-        with open("./data/config.json", "w") as outfile:
+        runtime_paths.ensure_data_dir()
+        with runtime_paths.config_file.open("w") as outfile:
             json.dump(dict_form, outfile)
         return render_template("info.html")
 

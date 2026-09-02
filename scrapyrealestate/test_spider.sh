@@ -26,18 +26,19 @@ case "$SPIDER" in
 esac
 
 URL="${2:-$DEFAULT_URL}"
-OUT="./data/test_${SPIDER}.json"
-LOG="./data/test_${SPIDER}.log"
+DATA_DIR="$(python3 -m scrapyrealestate.runtime)"
+OUT="${DATA_DIR}/test_${SPIDER}.json"
+LOG="${DATA_DIR}/test_${SPIDER}.log"
 
 if [ ! -f "scrapy.cfg" ]; then
   echo "ERROR: ejecuta este script desde la carpeta que contiene scrapy.cfg."
   exit 1
 fi
 
-# El settings.py lee ./data/useragent.txt; lo creamos si no existe.
-mkdir -p ./data
-if [ ! -s "./data/useragent.txt" ]; then
-  echo "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" > ./data/useragent.txt
+# El settings.py lee el User-Agent del directorio de datos compartido.
+mkdir -p "$DATA_DIR"
+if [ ! -s "${DATA_DIR}/useragent.txt" ]; then
+  echo "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" > "${DATA_DIR}/useragent.txt"
 fi
 
 rm -f "$OUT" "$LOG"

@@ -16,9 +16,13 @@ from os import path
 from art import tprint
 from fake_useragent import UserAgent
 
+from scrapyrealestate.runtime import get_runtime_paths
+
 
 __license__ = "GPL"
 __version__ = "3.0.0"
+
+runtime_paths = get_runtime_paths()
 
 # Bot público por defecto. Se puede sobreescribir en la web de configuración
 # o con la variable de entorno TELEGRAM_BOT_TOKEN (ver get_bot_token).
@@ -77,13 +81,12 @@ def mix_list(original_list):
 
 def get_config():
     # Sin config.json arrancamos la web para que el usuario lo cree.
-    if not os.path.isfile('./data/config.json'):
-        if not os.path.exists('data'):
-            os.makedirs('data')
+    if not runtime_paths.config_file.is_file():
+        runtime_paths.ensure_data_dir()
         process = init_app_flask()
         get_config_flask(process)
     else:
-        with open('./data/config.json') as json_file:
+        with runtime_paths.config_file.open() as json_file:
             global data
             data = json.load(json_file)
 
@@ -168,9 +171,9 @@ def get_config_flask(process):
     # Espera a que la web escriba config.json y para el servidor.
     global data
     while True:
-        if os.path.isfile('./data/config.json'):
+        if runtime_paths.config_file.is_file():
             try:
-                with open('./data/config.json') as json_file:
+                with runtime_paths.config_file.open() as json_file:
                     data = json.load(json_file)
                 break
             except json.JSONDecodeError:
@@ -230,7 +233,7 @@ def check_new_flats(json_file_name, scrapy_rs_name, min_price, max_price,
         logger.warning(f'SIN DATOS EN EL JSON {scrapy_rs_name.upper()}')
 
     try:
-        with open("./data/ids.json", "r") as outfile:
+        with runtime_paths.ids_file.open("r") as outfile:
             ids_file = json.load(outfile)
     except (FileNotFoundError, json.JSONDecodeError):
         ids_file = []
@@ -290,7 +293,7 @@ def check_new_flats(json_file_name, scrapy_rs_name, min_price, max_price,
                 logger.error(f'ERROR ENVIANDO A TELEGRAM: {e}')
             time.sleep(3.05)
 
-    with open("./data/ids.json", "w") as outfile:
+    with runtime_paths.ids_file.open("w") as outfile:
         json.dump(ids_file + new_ids_file, outfile)
 
     # solo a INFO si hay nuevas; si no, a DEBUG
@@ -311,7 +314,7 @@ def scrap_realestate(telegram_msg):
     scrapy_rs_name = data['scrapy_rs_name'].replace("-", "_")
     scrapy_log = data['log_level_scrapy'].upper()
     proxy_idealista = data['proxy_idealista']
-    out_file = f"./data/{scrapy_rs_name}.json"
+    out_file = str(runtime_paths.crawl_output(scrapy_rs_name))
 
     # todas las claves 'url_*' de la config
     urls = []
@@ -389,7 +392,7 @@ def scrap_realestate(telegram_msg):
 
 def update_useragent():
     try:
-        os.remove('./data/useragent.txt')
+        runtime_paths.user_agent_file.unlink()
     except FileNotFoundError:
         pass
     try:
@@ -398,7 +401,8 @@ def update_useragent():
     except Exception as e:
         logger.warning(f'fake-useragent falló ({e}); usando User-Agent de reserva')
         useragent = FALLBACK_USER_AGENT
-    with open('./data/useragent.txt', 'w') as f:
+    runtime_paths.ensure_data_dir()
+    with runtime_paths.user_agent_file.open('w') as f:
         f.write(useragent)
 
 
@@ -417,7 +421,7 @@ def init():
 
     while True:
         try:
-            os.remove(f"./data/{scrapy_rs_name}.json")
+            runtime_paths.crawl_output(scrapy_rs_name).unlink()
         except FileNotFoundError:
             pass
 
