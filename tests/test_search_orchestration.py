@@ -8,9 +8,16 @@ from scrapyrealestate.domain.listing import NormalizedListing
 from scrapyrealestate.domain.search import NormalizedSearch, SearchFilters
 from scrapyrealestate.domain.values import PortalKey, RunStatus, TransactionType
 from scrapyrealestate.execution.contract import PortalRunResult, utc_now
+from scrapyrealestate.notifiers import DeliveryResult, NotifierRegistry
 from scrapyrealestate.persistence.database import Database
 from scrapyrealestate.persistence.listings import ListingMatchRepository
 from scrapyrealestate.persistence.migrations import MIGRATIONS, MigrationRunner
+from scrapyrealestate.persistence.notifications import (
+    DeliveryStatus,
+    NotificationEventType,
+    NotificationProvider,
+    NotificationRepository,
+)
 from scrapyrealestate.persistence.runs import RunRepository, SearchRunStatus, TriggerKind
 from scrapyrealestate.persistence.searches import SearchPortalRecord, SearchRepository
 from scrapyrealestate.portals.base import (
@@ -25,6 +32,7 @@ from scrapyrealestate.portals.registry import PortalRegistry
 from scrapyrealestate.runtime import RuntimePaths
 from scrapyrealestate.services.ingestion import IngestionService
 from scrapyrealestate.services.locks import SearchAlreadyRunningError, SearchRunLock
+from scrapyrealestate.services.notification_delivery import DurableNotificationDispatcher
 from scrapyrealestate.services.search_orchestration import SearchOrchestrationService
 
 
@@ -46,6 +54,16 @@ class _StubRunner:
             finished_at=utc_now(),
             items=self._items,
         )
+
+
+class _RecordingNotifier:
+    def __init__(self, calls, result):
+        self._calls = calls
+        self._result = result
+
+    def send(self, event):
+        self._calls.append(event)
+        return self._result
 
 
 _PISOSCOM_ITEMS = (
@@ -533,6 +551,115 @@ def test_negative_inter_portal_delay_is_rejected(tmp_path: Path):
                 runtime_paths=RuntimePaths(tmp_path / "data"),
                 inter_portal_delay_seconds=-1,
             )
+
+
+def test_orchestration_routes_persisted_events_once_through_durable_delivery(
+    tmp_path: Path,
+):
+    with Database(tmp_path / "test.sqlite3").connection() as connection:
+        MigrationRunner(MIGRATIONS).migrate(connection)
+        record = SearchRepository(connection).create(
+            NormalizedSearch(
+                name="Notifications",
+                transaction_type=TransactionType.BUY,
+                filters=SearchFilters(location="Madrid"),
+            ),
+            interval_seconds=600,
+            portals=(SearchPortalRecord(portal=PortalKey.PISOSCOM),),
+        )
+        notifications = NotificationRepository(connection)
+        channel = notifications.create_channel(
+            "Telegram",
+            NotificationProvider.TELEGRAM,
+            config={"chat_id": "123"},
+            secret_config={"bot_token": "user-token"},
+        )
+        notifications.assign_channel(record.id, channel.id)
+        delivered = []
+        notifier_registry = NotifierRegistry()
+        notifier_registry.register(
+            NotificationProvider.TELEGRAM,
+            lambda configured: _RecordingNotifier(
+                delivered, DeliveryResult.delivered("telegram-1")
+            ),
+        )
+        service = SearchOrchestrationService(
+            registry=PortalRegistry(
+                [_make_succeeding_adapter(PortalKey.PISOSCOM, "pisos.com")]
+            ),
+            runner=_StubRunner(
+                ({"id": "1", "title": "Piso", "price_euros": 190_000},)
+            ),
+            runs=RunRepository(connection),
+            ingestion=IngestionService(connection),
+            runtime_paths=RuntimePaths(tmp_path / "data"),
+            notification_delivery=DurableNotificationDispatcher(
+                notifications, notifier_registry
+            ),
+        )
+
+        first = service.run_search(record, TriggerKind.MANUAL)
+        second = service.run_search(record, TriggerKind.MANUAL)
+
+        assert len(delivered) == 1
+        assert delivered[0].event_type is NotificationEventType.NEW_LISTING
+        assert len(first.attempts[0].notification_deliveries) == 1
+        assert first.attempts[0].notification_error is None
+        assert second.attempts[0].notification_deliveries == ()
+        row = connection.execute(
+            "SELECT * FROM notification_delivery_attempts WHERE channel_id = ?",
+            (channel.id,),
+        ).fetchone()
+        assert row["status"] == DeliveryStatus.SUCCEEDED.value
+        assert row["provider_message_id"] == "telegram-1"
+
+
+def test_notification_failure_is_durable_but_does_not_fail_search_run(tmp_path: Path):
+    with Database(tmp_path / "test.sqlite3").connection() as connection:
+        MigrationRunner(MIGRATIONS).migrate(connection)
+        record = SearchRepository(connection).create(
+            NormalizedSearch(
+                name="Notifications",
+                transaction_type=TransactionType.BUY,
+                filters=SearchFilters(location="Madrid"),
+            ),
+            interval_seconds=600,
+            portals=(SearchPortalRecord(portal=PortalKey.PISOSCOM),),
+        )
+        notifications = NotificationRepository(connection)
+        channel = notifications.create_channel(
+            "Webhook",
+            NotificationProvider.WEBHOOK,
+            config={"endpoint_url": "https://example.com/hook"},
+        )
+        notifications.assign_channel(record.id, channel.id)
+        notifier_registry = NotifierRegistry()
+        notifier_registry.register(
+            NotificationProvider.WEBHOOK,
+            lambda configured: _RecordingNotifier(
+                [], DeliveryResult.failed("timeout", "webhook request timed out")
+            ),
+        )
+        service = SearchOrchestrationService(
+            registry=PortalRegistry(
+                [_make_succeeding_adapter(PortalKey.PISOSCOM, "pisos.com")]
+            ),
+            runner=_StubRunner(({"id": "1", "title": "Piso"},)),
+            runs=RunRepository(connection),
+            ingestion=IngestionService(connection),
+            runtime_paths=RuntimePaths(tmp_path / "data"),
+            notification_delivery=DurableNotificationDispatcher(
+                notifications, notifier_registry
+            ),
+        )
+
+        outcome = service.run_search(record, TriggerKind.MANUAL)
+
+        assert outcome.run.status is SearchRunStatus.SUCCESS
+        assert outcome.attempts[0].attempt.status == RunStatus.SUCCESS.value
+        delivery = outcome.attempts[0].notification_deliveries[0]
+        assert delivery.completion.attempt.status is DeliveryStatus.FAILED
+        assert delivery.completion.retry is not None
 
 
 class _BlockingRunner:

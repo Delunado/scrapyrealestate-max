@@ -11,7 +11,11 @@ from scrapyrealestate.persistence.listings import (
     ListingMatchRepository,
 )
 from scrapyrealestate.persistence.migrations import MIGRATIONS, MigrationRunner
-from scrapyrealestate.persistence.notifications import NotificationEventType
+from scrapyrealestate.persistence.notifications import (
+    NotificationEventType,
+    NotificationProvider,
+    NotificationRepository,
+)
 from scrapyrealestate.services.ingestion import IngestionService
 
 
@@ -231,3 +235,29 @@ def test_ingest_attempt_rejects_a_listing_from_another_portal(setup):
             (_listing(portal=PortalKey.HABITACLIA),),
             RunStatus.SUCCESS,
         )
+
+
+def test_event_and_initial_delivery_attempt_are_committed_together(setup):
+    service, connection, search_id = setup
+    notifications = NotificationRepository(connection)
+    channel = notifications.create_channel(
+        "Telegram",
+        NotificationProvider.TELEGRAM,
+        config={"chat_id": "123"},
+        secret_config={"bot_token": "secret"},
+    )
+    notifications.assign_channel(search_id, channel.id)
+
+    outcome = service.ingest_attempt(
+        search_id, PortalKey.PISOSCOM, (_listing(),), RunStatus.SUCCESS
+    )
+
+    (event,) = outcome.events
+    attempt = connection.execute(
+        """
+        SELECT * FROM notification_delivery_attempts
+        WHERE event_id = ? AND channel_id = ?
+        """,
+        (event.id, channel.id),
+    ).fetchone()
+    assert attempt["status"] == "pending"

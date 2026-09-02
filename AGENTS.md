@@ -145,6 +145,10 @@ infrastructure without a concrete requirement and an explicit update to
   Both immediate and durable paths defensively redact every provider-controlled
   result field against all nested channel secrets before returning or persisting
   it; ordinary channel reads stay masked for logs, status views, and templates.
+  Ingestion creates the first eligible delivery attempts in the same SQLite
+  transaction as each new event. `SearchOrchestrationService` then drains durable
+  attempts through the provider registry after conclusive ingestion; delivery
+  failures are retained for retry but never change portal or search-run status.
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: current first-run-only Flask
   server. It writes `data/config.json`; `main.py` then terminates it.
 - `scrapyrealestate/scrapyrealestate/templates/`: current unstyled first-run form

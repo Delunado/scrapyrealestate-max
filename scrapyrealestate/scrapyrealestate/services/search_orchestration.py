@@ -35,6 +35,8 @@ from scrapyrealestate.execution.contract import (
     utc_now,
 )
 from scrapyrealestate.execution.runner import SpiderRunner
+from scrapyrealestate.notifiers.registry import build_default_notifier_registry
+from scrapyrealestate.persistence.notifications import NotificationRepository
 from scrapyrealestate.persistence.runs import (
     PortalAttemptRecord,
     RunCounts,
@@ -49,6 +51,10 @@ from scrapyrealestate.portals.registry import PortalRegistry
 from scrapyrealestate.runtime import RuntimePaths
 from scrapyrealestate.services.ingestion import IngestionOutcome, IngestionService
 from scrapyrealestate.services.locks import SearchRunLock
+from scrapyrealestate.services.notification_delivery import (
+    DispatchOutcome,
+    DurableNotificationDispatcher,
+)
 
 # Attempt statuses this run's overall status treats as having succeeded.
 _ATTEMPT_OK = frozenset({RunStatus.SUCCESS, RunStatus.EMPTY})
@@ -63,6 +69,8 @@ class PortalAttemptOutcome:
     listings: tuple[NormalizedListing, ...] = ()
     matched_listings: tuple[NormalizedListing, ...] = ()
     ingestion: IngestionOutcome | None = None
+    notification_deliveries: tuple[DispatchOutcome, ...] = ()
+    notification_error: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +98,7 @@ class SearchOrchestrationService:
         random_source: random.Random | None = None,
         sleep: Callable[[float], None] = time.sleep,
         locks: SearchRunLock | None = None,
+        notification_delivery: DurableNotificationDispatcher | None = None,
     ) -> None:
         if inter_portal_delay_seconds < 0:
             raise ValueError("inter_portal_delay_seconds cannot be negative")
@@ -108,6 +117,12 @@ class SearchOrchestrationService:
         self._random = random_source if random_source is not None else random.Random()
         self._sleep = sleep
         self._locks = locks if locks is not None else SearchRunLock()
+        self._notification_delivery = notification_delivery or (
+            DurableNotificationDispatcher(
+                NotificationRepository(ingestion.connection),
+                build_default_notifier_registry(),
+            )
+        )
 
     def run_search(
         self, search_record: SearchRecord, trigger: TriggerKind
@@ -182,9 +197,31 @@ class SearchOrchestrationService:
         ingestion, ingestion_error = self._ingest(
             search_record.id, portal_selection.portal, matched, result
         )
-        return self._finish_attempt(
-            attempt, result, listings, matched, ingestion, ingestion_error
+        notification_deliveries, notification_error = self._deliver_notifications(
+            ingestion
         )
+        return self._finish_attempt(
+            attempt,
+            result,
+            listings,
+            matched,
+            ingestion,
+            ingestion_error,
+            notification_deliveries,
+            notification_error,
+        )
+
+    def _deliver_notifications(
+        self, ingestion: IngestionOutcome | None
+    ) -> tuple[tuple[DispatchOutcome, ...], str | None]:
+        if ingestion is None:
+            return (), None
+        try:
+            # Initial attempts were created atomically by ingestion. Draining
+            # also picks up any retry that became due since the previous run.
+            return self._notification_delivery.dispatch_available(), None
+        except Exception:  # delivery infrastructure must never fail the search
+            return (), "notification delivery failed"
 
     def _ingest(
         self,
@@ -212,6 +249,8 @@ class SearchOrchestrationService:
         matched: tuple[NormalizedListing, ...],
         ingestion: IngestionOutcome | None = None,
         ingestion_error: str | None = None,
+        notification_deliveries: tuple[DispatchOutcome, ...] = (),
+        notification_error: str | None = None,
     ) -> PortalAttemptOutcome:
         counts = RunCounts(
             returned=len(result.items),
@@ -242,6 +281,8 @@ class SearchOrchestrationService:
             listings=listings,
             matched_listings=matched,
             ingestion=ingestion,
+            notification_deliveries=notification_deliveries,
+            notification_error=notification_error,
         )
 
     def _normalize(

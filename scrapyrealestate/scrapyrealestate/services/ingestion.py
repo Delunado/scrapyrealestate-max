@@ -180,14 +180,20 @@ class IngestionService:
         listing_id: int,
         payload: dict[str, Any],
     ) -> NotificationEventRecord:
-        return self._notifications.create_event(
+        creation = self._notifications.create_event(
             search_id,
             event_type,
             deduplication_key,
             occurred_at,
             listing_id=listing_id,
             payload=payload,
-        ).event
+        )
+        if creation.created:
+            # This method runs inside ingest_attempt's outer transaction, so
+            # event creation and its initial per-channel delivery attempts are
+            # committed or rolled back together.
+            self._notifications.ensure_event_deliveries(creation.event.id)
+        return creation.event
 
 
 def _timestamp(value: datetime) -> str:

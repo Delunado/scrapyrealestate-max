@@ -106,7 +106,7 @@ than code complexity.
 - [x] **Medium** — Add a notifier registry/router that sends an event only to enabled channels assigned to the originating search.
 - [x] **Hard** — Implement durable delivery claiming, success/failure recording, bounded retry/backoff, and restart-safe duplicate prevention.
 - [x] **Easy** — Add redaction tests proving Telegram, ntfy, and webhook secrets never appear in logs, status data, template context, or exception strings.
-- [ ] **Medium** — Switch search orchestration from direct Telegram calls to persisted provider-neutral events and notifier routing.
+- [x] **Medium** — Switch search orchestration from direct Telegram calls to persisted provider-neutral events and notifier routing.
 
 ## Phase 7 — Persistent application and scheduler lifecycle
 
