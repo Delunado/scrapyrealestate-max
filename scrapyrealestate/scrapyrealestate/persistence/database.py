@@ -25,13 +25,14 @@ class Database:
             raise ValueError("busy_timeout_ms cannot be negative")
         object.__setattr__(self, "path", path)
 
-    def connect(self) -> sqlite3.Connection:
+    def connect(self, *, check_same_thread: bool = True) -> sqlite3.Connection:
         """Open a connection with application-wide safety settings."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
         connection = sqlite3.connect(
             self.path,
             isolation_level=None,
             timeout=self.busy_timeout_ms / 1_000,
+            check_same_thread=check_same_thread,
         )
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
@@ -40,9 +41,11 @@ class Database:
         return connection
 
     @contextmanager
-    def connection(self) -> Iterator[sqlite3.Connection]:
+    def connection(
+        self, *, check_same_thread: bool = True
+    ) -> Iterator[sqlite3.Connection]:
         """Yield a configured connection and always close it afterwards."""
-        connection = self.connect()
+        connection = self.connect(check_same_thread=check_same_thread)
         try:
             yield connection
         finally:

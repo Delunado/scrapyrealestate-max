@@ -19,6 +19,12 @@ infrastructure without a concrete requirement and an explicit update to
   configuration, validates Telegram, runs spiders as subprocesses, merges their
   JSON output, performs price filtering and ID deduplication, sends Telegram
   messages, and sleeps forever.
+- `scrapyrealestate/scrapyrealestate/bootstrap.py`: new persistent composition
+  entrypoint built beside the legacy runtime. It resolves the data directory,
+  applies migrations, idempotently imports any preserved legacy JSON sources once,
+  composes repositories/orchestration/scheduler/Flask, and starts web plus scheduler
+  without waiting for `config.json`. It is not the deployed entrypoint until the
+  explicit Phase 7 cutover task.
 - `scrapyrealestate/scrapy.cfg`: Scrapy project marker. Scrapy commands must run
   from this directory unless `SCRAPY_SETTINGS_MODULE` is set explicitly.
 - `scrapyrealestate/scrapyrealestate/settings.py`: shared Scrapy and Playwright

@@ -116,7 +116,7 @@ than code complexity.
 - [x] **Medium** — Persist scheduler activity and next-run state, and recover cleanly after process restarts or a missed interval.
 - [x] **Medium** — Route scheduled and manual triggers through the same non-overlapping search orchestration API.
 - [x] **Hard** — Add scheduler tests with a controllable clock for independent intervals, disabled searches, missed runs, lock contention, failure isolation, and clean stop.
-- [ ] **Medium** — Create a new bootstrap entrypoint that runs migrations/import once, starts the persistent web server and scheduler, and no longer waits on `config.json`.
+- [x] **Medium** — Create a new bootstrap entrypoint that runs migrations/import once, starts the persistent web server and scheduler, and no longer waits on `config.json`.
 - [ ] **Medium** — Add SIGTERM/SIGINT lifecycle handling that stops new scheduling, terminates child crawls after a grace period, and closes the web/database services cleanly.
 - [ ] **Medium** — Run the Flask application under a lightweight production WSGI server suitable for the single-service Compose deployment.
 - [ ] **Hard** — Cut over from the legacy infinite loop to the new bootstrap only after migration, orchestration, notification, and lifecycle integration tests pass.
