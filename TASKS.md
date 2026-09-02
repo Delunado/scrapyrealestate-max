@@ -9,7 +9,7 @@ than code complexity.
 ## Phase 0 — Repository baseline and working agreements
 
 - [x] **Easy** — Audit the repository and relevant Git history, then document the current architecture, operational constraints, migration hazards, agent workflow, and ordered roadmap in `AGENTS.md` and `TASKS.md`.
-- [ ] **Easy** — Add an offline pytest scaffold, shared temporary-data fixtures, and smoke tests for importing application modules without performing network calls.
+- [x] **Easy** — Add an offline pytest scaffold, shared temporary-data fixtures, and smoke tests for importing application modules without performing network calls.
 - [ ] **Easy** — Add focused Ruff configuration for the supported Python version, fix only baseline violations needed to enable it, and document the exact lint command.
 - [ ] **Easy** — Add a minimal CI workflow that runs offline unit tests, lint, and Compose configuration validation without launching live spiders.
 - [ ] **Medium** — Capture a sanitized Pisos.com HTML fixture and add parser tests that lock down its current normalized fields and missing-field behavior.

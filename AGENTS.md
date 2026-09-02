@@ -41,8 +41,8 @@ infrastructure without a concrete requirement and an explicit update to
 - `README.md`: current user-facing behavior and deployment instructions.
 - `TASKS.md`: canonical ordered improvement plan. Read it before making changes.
 
-There is currently no package metadata, automated test suite, linter, type checker,
-CI workflow, schema migration system, or database.
+There is currently no package metadata, type checker, CI workflow, schema migration
+system, or database. Offline tests use pytest with shared fixtures in `tests/`.
 
 ## Current runtime flow
 
@@ -196,12 +196,15 @@ unattended deployments.
 
 ## Tests and checks
 
-The checked-in project currently has only a manual live spider script. Until the
-tooling tasks in `TASKS.md` land, use the checks that are available:
+The checked-in project also has a manual live spider script. Use the following
+offline checks:
 
 ```bash
 # From the repository root: syntax-only, no portal access
 python -m compileall -q scrapyrealestate
+
+# From the repository root: offline unit and import smoke tests
+python -m pytest
 
 # From scrapyrealestate/: requires installed project dependencies
 scrapy list
@@ -225,10 +228,10 @@ docker exec -it scrapyrealestate bash -c \
 ```
 
 Live tests require network access and may fail because a portal changed or blocked
-the request. They must remain opt-in and must not be the sole parser tests. Once the
-test scaffold lands, the normal offline command will be `python -m pytest`; follow
-the checked-in tool configuration for lint/type commands rather than inventing
-local flags. Keep saved HTML/JSON fixtures small, sanitized, and free of secrets.
+the request. They must remain opt-in and must not be the sole parser tests. The
+normal offline test command is `python -m pytest`; follow the checked-in tool
+configuration for lint/type commands rather than inventing local flags. Keep saved
+HTML/JSON fixtures small, sanitized, and free of secrets.
 
 Every behavior change needs focused offline tests. Database tests use temporary
 databases and real migrations. Parser tests use fixtures. Adapter contract tests
