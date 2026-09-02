@@ -149,6 +149,11 @@ infrastructure without a concrete requirement and an explicit update to
   transaction as each new event. `SearchOrchestrationService` then drains durable
   attempts through the provider registry after conclusive ingestion; delivery
   failures are retained for retry but never change portal or search-run status.
+  `services/scheduler.py` provides the lightweight in-process scheduler: it loads
+  enabled searches, computes aware UTC deadlines, sleeps on a condition until the
+  nearest deadline, and reloads immediately when `notify_schedule_changed()` is
+  called instead of periodically polling SQLite. Scheduled work calls the same
+  `run_search(search_record, trigger)` orchestration boundary used elsewhere.
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: Flask application factory
   with per-application runtime paths and injected repository/service containers.
   The factory remains available independently of `config.json`; during the

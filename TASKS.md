@@ -112,7 +112,7 @@ than code complexity.
 
 - [x] **Medium** — Refactor Flask into an application factory with injected repositories/services and persistent availability independent of first-run configuration.
 - [x] **Easy** — Add `/healthz` liveness and `/readyz` readiness endpoints that do not disclose secrets or depend on unreliable portals.
-- [ ] **Medium** — Implement a lightweight in-process scheduler that loads enabled searches, computes UTC next-run times, and reacts to schedule changes without polling aggressively.
+- [x] **Medium** — Implement a lightweight in-process scheduler that loads enabled searches, computes UTC next-run times, and reacts to schedule changes without polling aggressively.
 - [ ] **Medium** — Persist scheduler activity and next-run state, and recover cleanly after process restarts or a missed interval.
 - [ ] **Medium** — Route scheduled and manual triggers through the same non-overlapping search orchestration API.
 - [ ] **Hard** — Add scheduler tests with a controllable clock for independent intervals, disabled searches, missed runs, lock contention, failure isolation, and clean stop.
