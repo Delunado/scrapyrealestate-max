@@ -305,3 +305,99 @@ def test_price_history_rejects_invalid_values(
             """,
             (listing_id, price, currency, observed_at),
         )
+
+
+def _insert_search(connection, name="A"):
+    return connection.execute(
+        "INSERT INTO searches (name, transaction_type) VALUES (?, 'buy') RETURNING id",
+        (name,),
+    ).fetchone()[0]
+
+
+def test_run_and_portal_attempt_capture_status_timing_and_counts(migrated_connection):
+    search_id = _insert_search(migrated_connection)
+    run_id = migrated_connection.execute(
+        """
+        INSERT INTO search_runs (
+            search_id, trigger_kind, status, started_at, finished_at,
+            returned_count, matched_count, new_count
+        ) VALUES (?, 'manual', 'success', '2026-01-01T10:00:00Z',
+                  '2026-01-01T10:01:00Z', 10, 8, 3)
+        RETURNING id
+        """,
+        (search_id,),
+    ).fetchone()[0]
+    migrated_connection.execute(
+        """
+        INSERT INTO portal_attempts (
+            search_run_id, portal_key, status, started_at, finished_at,
+            returned_count, matched_count, new_count
+        ) VALUES (?, 'pisoscom', 'success', '2026-01-01T10:00:00Z',
+                  '2026-01-01T10:01:00Z', 10, 8, 3)
+        """,
+        (run_id,),
+    )
+
+    attempt = migrated_connection.execute("SELECT * FROM portal_attempts").fetchone()
+    assert attempt["returned_count"] == 10
+    assert attempt["matched_count"] == 8
+    assert attempt["new_count"] == 3
+    assert attempt["attempt_number"] == 1
+
+
+def test_failed_portal_attempt_requires_finish_and_accepts_bounded_diagnostic(
+    migrated_connection,
+):
+    search_id = _insert_search(migrated_connection)
+    run_id = migrated_connection.execute(
+        """
+        INSERT INTO search_runs (search_id, trigger_kind, status, started_at)
+        VALUES (?, 'scheduled', 'running', '2026-01-01T10:00:00Z') RETURNING id
+        """,
+        (search_id,),
+    ).fetchone()[0]
+
+    with pytest.raises(sqlite3.IntegrityError):
+        migrated_connection.execute(
+            """
+            INSERT INTO portal_attempts (
+                search_run_id, portal_key, status, started_at, error_category
+            ) VALUES (?, 'idealista', 'blocked', '2026-01-01T10:00:00Z', 'challenge')
+            """,
+            (run_id,),
+        )
+
+    migrated_connection.execute(
+        """
+        INSERT INTO portal_attempts (
+            search_run_id, portal_key, status, started_at, finished_at,
+            error_category, redacted_diagnostic
+        ) VALUES (?, 'idealista', 'blocked', '2026-01-01T10:00:00Z',
+                  '2026-01-01T10:00:05Z', 'challenge', 'DataDome challenge')
+        """,
+        (run_id,),
+    )
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        """
+        INSERT INTO search_runs (search_id, trigger_kind, status)
+        VALUES (1, 'startup', 'pending')
+        """,
+        """
+        INSERT INTO search_runs (search_id, trigger_kind, status, started_at)
+        VALUES (1, 'manual', 'success', '2026-01-01T10:00:00Z')
+        """,
+        """
+        INSERT INTO search_runs (
+            search_id, trigger_kind, status, started_at, returned_count
+        ) VALUES (1, 'manual', 'running', '2026-01-01T10:00:00Z', -1)
+        """,
+    ],
+)
+def test_search_run_constraints_reject_invalid_state(migrated_connection, statement):
+    _insert_search(migrated_connection)
+    with pytest.raises(sqlite3.IntegrityError):
+        migrated_connection.execute(statement)
