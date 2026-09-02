@@ -115,3 +115,72 @@ def test_search_portal_constraints_reject_invalid_values(
             """,
             (search_id, portal_key, raw_url, options),
         )
+
+
+def _insert_listing(connection, portal_key="pisoscom", external_id="123", **values):
+    defaults = {
+        "canonical_url": "https://example.com/listing/123",
+        "transaction_type": "buy",
+        "title": "Piso céntrico",
+        "first_seen_at": "2026-01-01T10:00:00Z",
+        "last_seen_at": "2026-01-01T10:00:00Z",
+    }
+    defaults.update(values)
+    return connection.execute(
+        """
+        INSERT INTO listings (
+            portal_key, external_id, canonical_url, transaction_type, title,
+            first_seen_at, last_seen_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        RETURNING id
+        """,
+        (
+            portal_key,
+            external_id,
+            defaults["canonical_url"],
+            defaults["transaction_type"],
+            defaults["title"],
+            defaults["first_seen_at"],
+            defaults["last_seen_at"],
+        ),
+    ).fetchone()[0]
+
+
+def test_listing_identity_is_scoped_to_portal(migrated_connection):
+    first_id = _insert_listing(migrated_connection)
+    second_id = _insert_listing(
+        migrated_connection,
+        portal_key="habitaclia",
+        canonical_url="https://example.com/listing/123",
+    )
+
+    assert first_id != second_id
+    with pytest.raises(sqlite3.IntegrityError):
+        _insert_listing(
+            migrated_connection,
+            canonical_url="https://example.com/listing/different",
+        )
+
+
+def test_listing_canonical_url_is_a_portal_scoped_unique_fallback(
+    migrated_connection,
+):
+    _insert_listing(migrated_connection, external_id=None)
+
+    with pytest.raises(sqlite3.IntegrityError):
+        _insert_listing(migrated_connection, external_id=None)
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        {"external_id": None, "canonical_url": None},
+        {"title": " "},
+        {"first_seen_at": "2026-01-02T10:00:00Z"},
+        {"last_seen_at": "2026-01-01 10:00:00"},
+    ],
+)
+def test_listing_constraints_reject_invalid_records(migrated_connection, values):
+    external_id = values.pop("external_id", "123")
+    with pytest.raises(sqlite3.IntegrityError):
+        _insert_listing(migrated_connection, external_id=external_id, **values)

@@ -147,7 +147,10 @@ The target normalized listing contract must make `portal`, `external_id`,
 be typed and nullable; original/raw values may be retained for diagnostics. Money
 uses integer euros and area uses square metres. Empty strings are not domain-level
 null values. A portal plus external ID is the preferred identity; canonical URL is
-the fallback. Validate this contract at the spider/adapter boundary.
+the fallback. Validate this contract at the spider/adapter boundary. SQLite enforces
+partial unique indexes on `(portal_key, external_id)` and
+`(portal_key, canonical_url)` when those values are present, keeping both identities
+portal-scoped.
 
 The initial contract is implemented in `domain/`. `NormalizedListing` requires a
 typed portal and transaction, a non-empty title, and either an external ID or an
