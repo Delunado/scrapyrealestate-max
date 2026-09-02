@@ -1,6 +1,13 @@
 """Normalized domain types shared by scraping, persistence, and services."""
 
 from scrapyrealestate.domain.listing import NormalizedListing, canonicalize_url
+from scrapyrealestate.domain.normalization import (
+    normalize_area_sqm,
+    normalize_count,
+    normalize_euro_price,
+    normalize_floor,
+    normalize_nullable_boolean,
+)
 
 from scrapyrealestate.domain.values import (
     PortalKey,
@@ -18,4 +25,9 @@ __all__ = [
     "TransactionType",
     "TriState",
     "canonicalize_url",
+    "normalize_area_sqm",
+    "normalize_count",
+    "normalize_euro_price",
+    "normalize_floor",
+    "normalize_nullable_boolean",
 ]
