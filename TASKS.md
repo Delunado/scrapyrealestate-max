@@ -26,7 +26,7 @@ than code complexity.
 - [x] **Medium** — Define and test typed legacy configuration loading, defaults, validation errors, and conversion of the current string booleans/numbers and list-valued URL fields.
 - [x] **Easy** — Remove the shared Telegram fallback credential, require an explicit user token or environment override, and redact secrets from logs and object representations.
 - [x] **Easy** — Replace direct `sys.exit` configuration paths with structured validation errors that a future web UI can display without killing the service.
-- [ ] **Easy** — Correct mojibake in user-facing templates, README text, and runtime messages in a behavior-neutral encoding cleanup.
+- [x] **Easy** — Correct mojibake in user-facing templates, README text, and runtime messages in a behavior-neutral encoding cleanup.
 - [ ] **Medium** — Add atomic file-write helpers and use them for legacy configuration/ID files until SQLite becomes authoritative.
 
 ## Phase 2 — Normalized domain model and filtering

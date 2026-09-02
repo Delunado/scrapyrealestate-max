@@ -304,5 +304,6 @@ or local editor files.
   construction belongs in adapters and requires tests.
 - Current notification and dedup writes are not atomic. SQLite ingestion and event
   creation must be transactional before JSON state is retired.
-- Current README text and some source comments contain mojibake. Correct user-facing
-  encoding deliberately; do not mix encoding cleanup into unrelated behavior tasks.
+- User-facing README, template, and runtime text is UTF-8 and has encoding regression
+  coverage. Keep new text UTF-8 and do not mix broad wording cleanup into unrelated
+  behavior tasks.
