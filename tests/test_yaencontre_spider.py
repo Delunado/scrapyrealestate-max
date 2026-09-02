@@ -1,5 +1,7 @@
 from scrapy.http import HtmlResponse, Request
 
+from scrapyrealestate.domain.legacy_mapper import map_legacy_item
+from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.spiders.yaencontre_spider import YaencontreSpider
 
 
@@ -63,3 +65,19 @@ def test_parse_yaencontre_missing_fields_and_non_listings(load_fixture):
         ),
         "site": "yaencontre",
     }
+
+
+def test_every_yaencontre_result_satisfies_normalized_boundary(load_fixture):
+    normalized = [
+        map_legacy_item(item)
+        for item in parse_fixture(load_fixture("yaencontre/search_results.html"))
+    ]
+
+    assert all(listing.portal is PortalKey.YAENCONTRE for listing in normalized)
+    assert all(listing.transaction_type is TransactionType.RENT for listing in normalized)
+    assert normalized[0].external_id == "24681012"
+    assert normalized[0].price_euros == 1_400
+    assert normalized[0].area_sqm == 88
+    assert normalized[0].rooms == 3
+    assert normalized[1].price_euros is None
+    assert normalized[1].area_sqm is None

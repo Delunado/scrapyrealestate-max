@@ -1,8 +1,12 @@
 import logging
+from urllib.parse import urljoin
+
 import scrapy
 from bs4 import BeautifulSoup
-from scrapyrealestate.items import ScrapyrealestateItem
 from scrapy_playwright.page import PageMethod
+
+from scrapyrealestate.domain.values import PortalKey, TransactionType
+from scrapyrealestate.items import ScrapyrealestateItem
 
 
 class YaencontreSpider(scrapy.Spider):
@@ -33,11 +37,11 @@ class YaencontreSpider(scrapy.Spider):
 
         # alquiler/venta segun la url
         if 'alquiler' in self.start_urls:
-            tipo = 'rent'
+            transaction_type = TransactionType.RENT
         elif 'comprar' in self.start_urls or 'venta' in self.start_urls:
-            tipo = 'buy'
+            transaction_type = TransactionType.BUY
         else:
-            tipo = ''
+            return
 
         for art in flats:
             link = art.find("a", href=True)
@@ -45,10 +49,12 @@ class YaencontreSpider(scrapy.Spider):
                 continue
             href = link['href']
             title = link.get_text(strip=True)
+            if not title:
+                continue
             try:
-                id = href.split('-')[1]
+                listing_id = href.split('-')[1]
             except IndexError:
-                id = ''
+                listing_id = ''
 
             # Municipio, barrio y calle desde el titulo separado por comas:
             #   "Piso en calle Huesca, Castillejos, Madrid"
@@ -76,7 +82,7 @@ class YaencontreSpider(scrapy.Spider):
                     m2 = t
 
             items = ScrapyrealestateItem()
-            items['id'] = id
+            items['id'] = listing_id
             items['title'] = title
             items['price'] = price
             items['rooms'] = rooms
@@ -86,7 +92,7 @@ class YaencontreSpider(scrapy.Spider):
             items['neighbour'] = neighbour
             items['street'] = street
             items['number'] = ''
-            items['type'] = tipo
-            items['href'] = (default_url + href) if href.startswith('/') else href
-            items['site'] = 'yaencontre'
+            items['type'] = transaction_type.value
+            items['href'] = urljoin(default_url, href)
+            items['site'] = PortalKey.YAENCONTRE.value
             yield items
