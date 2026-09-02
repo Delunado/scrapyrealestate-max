@@ -12,6 +12,7 @@ def test_runtime_paths_keep_absolute_legacy_default(tmp_path: Path):
     assert paths.config_file == paths.data_dir / "config.json"
     assert paths.ids_file == paths.data_dir / "ids.json"
     assert paths.user_agent_file == paths.data_dir / "useragent.txt"
+    assert paths.database_file == paths.data_dir / "scrapyrealestate.sqlite3"
     assert paths.crawl_output("my_search") == paths.data_dir / "my_search.json"
     assert paths.live_test_output("pisoscom") == paths.data_dir / "test_pisoscom.json"
     assert paths.live_test_log("pisoscom") == paths.data_dir / "test_pisoscom.log"

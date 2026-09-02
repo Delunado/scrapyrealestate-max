@@ -47,7 +47,7 @@ than code complexity.
 
 ## Phase 3 — SQLite persistence and explicit migrations
 
-- [ ] **Medium** — Introduce a small SQLite connection layer with foreign keys, busy timeout, WAL behavior where supported, transaction helpers, and temporary-database tests.
+- [x] **Medium** — Introduce a small SQLite connection layer with foreign keys, busy timeout, WAL behavior where supported, transaction helpers, and temporary-database tests.
 - [ ] **Medium** — Add a transactional, forward-only migration runner with a schema-version table and failure/rollback tests.
 - [ ] **Medium** — Add the migration for application settings, searches, and per-search schedules with constraints and UTC timestamps.
 - [ ] **Medium** — Add the migration for search/portal selection, raw URL override, adapter options, and enabled state.

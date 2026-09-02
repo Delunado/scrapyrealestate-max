@@ -47,6 +47,10 @@ class RuntimePaths:
     def user_agent_file(self) -> Path:
         return self.data_dir / "useragent.txt"
 
+    @property
+    def database_file(self) -> Path:
+        return self.data_dir / "scrapyrealestate.sqlite3"
+
     def crawl_output(self, instance_name: str) -> Path:
         return self.data_dir / f"{instance_name}.json"
 

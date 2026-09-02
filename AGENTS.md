@@ -28,6 +28,8 @@ infrastructure without a concrete requirement and an explicit update to
   search models, Spanish display-value normalization, the transitional legacy item
   mapper, and explicit three-state local filter evaluation. The legacy runtime does
   not consume this boundary yet.
+- `scrapyrealestate/scrapyrealestate/persistence/`: configured SQLite connections,
+  explicit transactions, and the ordered migration infrastructure/schema.
 - `scrapyrealestate/scrapyrealestate/spiders/`: one spider module per portal plus
   the optional Idealista proxy variant.
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: current first-run-only Flask
@@ -47,8 +49,9 @@ infrastructure without a concrete requirement and an explicit update to
 - `README.md`: current user-facing behavior and deployment instructions.
 - `TASKS.md`: canonical ordered improvement plan. Read it before making changes.
 
-There is currently no package metadata, type checker, schema migration system, or
-database. Offline tests use pytest with shared fixtures in `tests/`, and Ruff
+There is currently no package metadata or type checker. SQLite infrastructure is
+being introduced incrementally and is not consumed by the legacy runtime yet.
+Offline tests use pytest with shared fixtures in `tests/`, and Ruff
 enforces the focused Python 3.12 lint baseline configured in `pyproject.toml`.
 GitHub Actions runs tests, lint, and Compose validation without live portal access.
 
