@@ -41,9 +41,10 @@ infrastructure without a concrete requirement and an explicit update to
 - `README.md`: current user-facing behavior and deployment instructions.
 - `TASKS.md`: canonical ordered improvement plan. Read it before making changes.
 
-There is currently no package metadata, type checker, CI workflow, schema migration
-system, or database. Offline tests use pytest with shared fixtures in `tests/`, and
-Ruff enforces the focused Python 3.12 lint baseline configured in `pyproject.toml`.
+There is currently no package metadata, type checker, schema migration system, or
+database. Offline tests use pytest with shared fixtures in `tests/`, and Ruff
+enforces the focused Python 3.12 lint baseline configured in `pyproject.toml`.
+GitHub Actions runs tests, lint, and Compose validation without live portal access.
 
 ## Current runtime flow
 
