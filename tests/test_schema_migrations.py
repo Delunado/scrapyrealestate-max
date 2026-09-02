@@ -233,3 +233,75 @@ def test_search_listing_match_enforces_identity_and_seen_order(migrated_connecti
             """,
             (search_id, listing_id),
         )
+
+
+def test_price_history_records_chronological_observations(migrated_connection):
+    listing_id = _insert_listing(migrated_connection)
+    migrated_connection.executemany(
+        """
+        INSERT INTO listing_price_history (listing_id, price_euros, observed_at)
+        VALUES (?, ?, ?)
+        """,
+        (
+            (listing_id, 200_000, "2026-01-01T10:00:00Z"),
+            (listing_id, 195_000, "2026-01-02T10:00:00Z"),
+            (listing_id, 195_000, "2026-01-03T10:00:00Z"),
+        ),
+    )
+
+    rows = migrated_connection.execute(
+        """
+        SELECT price_euros, currency FROM listing_price_history
+        WHERE listing_id = ? ORDER BY observed_at
+        """,
+        (listing_id,),
+    ).fetchall()
+    assert [tuple(row) for row in rows] == [
+        (200_000, "EUR"),
+        (195_000, "EUR"),
+        (195_000, "EUR"),
+    ]
+
+
+def test_price_history_prevents_duplicate_observation_times(migrated_connection):
+    listing_id = _insert_listing(migrated_connection)
+    migrated_connection.execute(
+        """
+        INSERT INTO listing_price_history (listing_id, price_euros, observed_at)
+        VALUES (?, 200000, '2026-01-01T10:00:00Z')
+        """,
+        (listing_id,),
+    )
+
+    with pytest.raises(sqlite3.IntegrityError):
+        migrated_connection.execute(
+            """
+            INSERT INTO listing_price_history (listing_id, price_euros, observed_at)
+            VALUES (?, 190000, '2026-01-01T10:00:00Z')
+            """,
+            (listing_id,),
+        )
+
+
+@pytest.mark.parametrize(
+    ("price", "currency", "observed_at"),
+    [
+        (-1, "EUR", "2026-01-01T10:00:00Z"),
+        (1, "eur", "2026-01-01T10:00:00Z"),
+        (1, "EURO", "2026-01-01T10:00:00Z"),
+        (1, "EUR", "2026-01-01 10:00:00"),
+    ],
+)
+def test_price_history_rejects_invalid_values(
+    migrated_connection, price, currency, observed_at
+):
+    listing_id = _insert_listing(migrated_connection)
+    with pytest.raises(sqlite3.IntegrityError):
+        migrated_connection.execute(
+            """
+            INSERT INTO listing_price_history (
+                listing_id, price_euros, currency, observed_at
+            ) VALUES (?, ?, ?, ?)
+            """,
+            (listing_id, price, currency, observed_at),
+        )

@@ -53,7 +53,7 @@ than code complexity.
 - [x] **Medium** — Add the migration for search/portal selection, raw URL override, adapter options, and enabled state.
 - [x] **Medium** — Add the migration for normalized listings with portal-scoped identity, canonical URL uniqueness strategy, first/last-seen, and active state.
 - [x] **Medium** — Add the migration for many-to-many search/listing matches and per-search first/last-seen metadata.
-- [ ] **Medium** — Add the migration for price history with currency, observed time, and uniqueness that prevents duplicate observations.
+- [x] **Medium** — Add the migration for price history with currency, observed time, and uniqueness that prevents duplicate observations.
 - [ ] **Medium** — Add the migration for search runs and per-portal attempts, including timing, counts, status, error category, and redacted diagnostic text.
 - [ ] **Medium** — Add the migration for notification channels, search/channel assignments, provider-neutral events, and delivery attempts.
 - [ ] **Medium** — Implement and test search CRUD repositories, including enable/disable and per-search schedule/portal updates.
