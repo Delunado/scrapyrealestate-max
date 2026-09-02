@@ -179,9 +179,8 @@ spiders still emit `ScrapyrealestateItem`.
 
 ## Portal adapter conventions
 
-The adapter layer lives in `portals/` alongside the current dispatch in `main.py`;
-`main.py` keeps using its own domain `if/elif` chain until the dispatcher is
-replaced (a later `TASKS.md` item). `PortalAdapter` (`portals/base.py`) declares a
+The adapter layer lives in `portals/`; `main.py` dispatches through it (see below)
+rather than a domain `if/elif` chain. `PortalAdapter` (`portals/base.py`) declares a
 stable key, display name, domains, spider name, transaction types, transport
 (`PortalTransport.HTTP` / `PLAYWRIGHT` / `ROTATING_PROXY_HTTP`, which also implies
 the browser requirement), operational caveats, a `degraded` flag for portals with
@@ -259,6 +258,56 @@ free-text location without a province lookup table it does not have — guessing
 `<slug>-<slug>` would silently misroute any municipality whose province is
 named differently. The legacy-compatible `build_request(raw_url)` path is
 unaffected.
+
+### The complete adapter contract
+
+Every portal integration is one `PortalAdapter` (in practice, one
+`BasePortalAdapter` subclass) plus its wrapped spider, nothing else:
+
+- `metadata: PortalMetadata` — `key` (`PortalKey`), `display_name`, `domains`,
+  `spider_name` (must match the wrapped `scrapy.Spider.name`), `transaction_types`,
+  `transport` (`PortalTransport`; `PLAYWRIGHT` implies `requires_browser`),
+  `capabilities` (`FilterCapabilities`; use `ALL_LOCAL_CAPABILITIES` unless the
+  adapter genuinely encodes a filter remotely), `caveats` (free text), and
+  `degraded` (no anti-bot bypass guaranteed).
+- `_transaction_type(raw_url) -> TransactionType | None` — mirror the wrapped
+  spider's own URL parsing exactly; return `None` for anything the spider
+  would not recognize.
+- `_apply_recent_sort(raw_url) -> str` — return the most-recent-first URL,
+  matching (or, where documented, deliberately fixing — see Pisos.com's
+  double-slash fix) the legacy suffix.
+- `_build_search_url(transaction_type, location_slug) -> str` *(optional)* —
+  override to support `build_request_from_search`; the shared default raises
+  `PortalRequestError` explicitly for adapters that do not (see Idealista).
+- `build_request(raw_url)`, `normalize_result(item)`, and
+  `build_request_from_search(search)` come from `BasePortalAdapter` and should
+  not be overridden.
+
+### Tested steps to add a new portal
+
+1. Capture a sanitized response fixture under `tests/fixtures/<portal>/` and
+   write `tests/test_<portal>_spider.py` locking down the spider's normalized
+   fields and missing-field behavior (Phase 0 pattern) before touching the
+   adapter layer.
+2. Add `scrapyrealestate/spiders/<portal>_spider.py` if it does not exist yet,
+   with a `name` matching the intended `spider_name`.
+3. Add `portals/<portal>.py` with one `BasePortalAdapter` subclass implementing
+   `metadata`, `_transaction_type`, and `_apply_recent_sort`; add `_build_search_url`
+   too if a plain municipality slug is a safe enough location translation (skip
+   it, explicitly, if the portal needs taxonomy data this codebase cannot derive
+   — see Idealista).
+4. Register the new adapter in `portals.build_default_registry()`
+   (`portals/__init__.py`); never add a new central `if/elif` to `main.py`.
+5. Add `tests/test_<portal>_adapter.py` covering: metadata identity/transport,
+   `build_request` for every transaction type plus wrong-domain and
+   unresolvable-transaction-type errors, `build_request_from_search` (or its
+   explicit "not implemented" error, with a test proving that is deliberate),
+   and `normalize_result` against `map_legacy_item` for the fixture's items.
+6. Add the portal to the table in "Spiders and current portal behavior" above
+   and to this contract's "adding a portal" list if it needs a documented
+   exception (e.g. sharing a domain with another adapter, as Idealista does).
+7. Run `python -m pytest`, `python -m ruff check .`, and (from
+   `scrapyrealestate/`) `scrapy list` before checking off the task.
 
 ## Application boundaries to preserve
 
