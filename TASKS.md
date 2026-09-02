@@ -15,7 +15,7 @@ than code complexity.
 - [x] **Medium** — Capture a sanitized Pisos.com HTML fixture and add parser tests that lock down its current normalized fields and missing-field behavior.
 - [x] **Medium** — Capture a sanitized Habitaclia HTML fixture and add parser tests that lock down its current normalized fields and related-ad cutoff behavior.
 - [x] **Medium** — Capture a sanitized Fotocasa embedded-JSON fixture and add parser tests for its current normalized fields and malformed/missing payload behavior.
-- [ ] **Medium** — Capture a sanitized Yaencontre rendered-HTML fixture and add parser tests that lock down its current normalized fields and missing-field behavior.
+- [x] **Medium** — Capture a sanitized Yaencontre rendered-HTML fixture and add parser tests that lock down its current normalized fields and missing-field behavior.
 - [ ] **Externally unreliable** — Add an Idealista blocked/challenge fixture and parser/error-path tests without requiring a successful live crawl.
 - [ ] **Easy** — Make `test_spider.sh` clearly separate successful non-empty output, valid empty output, parser failure, transport failure, and likely blocking while remaining an opt-in live tool.
 
