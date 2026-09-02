@@ -49,7 +49,7 @@ than code complexity.
 
 - [x] **Medium** — Introduce a small SQLite connection layer with foreign keys, busy timeout, WAL behavior where supported, transaction helpers, and temporary-database tests.
 - [x] **Medium** — Add a transactional, forward-only migration runner with a schema-version table and failure/rollback tests.
-- [ ] **Medium** — Add the migration for application settings, searches, and per-search schedules with constraints and UTC timestamps.
+- [x] **Medium** — Add the migration for application settings, searches, and per-search schedules with constraints and UTC timestamps.
 - [ ] **Medium** — Add the migration for search/portal selection, raw URL override, adapter options, and enabled state.
 - [ ] **Medium** — Add the migration for normalized listings with portal-scoped identity, canonical URL uniqueness strategy, first/last-seen, and active state.
 - [ ] **Medium** — Add the migration for many-to-many search/listing matches and per-search first/last-seen metadata.
