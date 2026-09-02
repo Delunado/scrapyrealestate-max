@@ -31,7 +31,7 @@ than code complexity.
 
 ## Phase 2 — Normalized domain model and filtering
 
-- [ ] **Medium** — Define transaction type, property type, tri-state amenity, portal key, and run-status value objects/enums with serialization tests.
+- [x] **Medium** — Define transaction type, property type, tri-state amenity, portal key, and run-status value objects/enums with serialization tests.
 - [ ] **Medium** — Define the normalized listing model, required/optional fields, UTC timestamp conventions, canonical URL rules, and raw-source diagnostics.
 - [ ] **Medium** — Add locale-aware normalization helpers for euro prices, square metres, room/bath counts, floors, and nullable booleans with edge-case tests.
 - [ ] **Medium** — Add a compatibility mapper from every current `ScrapyrealestateItem` field to the normalized listing model and reject records without usable identity.
