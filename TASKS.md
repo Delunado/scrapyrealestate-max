@@ -90,7 +90,7 @@ than code complexity.
 - [x] **Medium** — Replace append-and-repair JSON output with a unique per-attempt JSON Lines/temp output path and strict decoding tests.
 - [x] **Medium** — Add subprocess timeouts, return-code handling, bounded stderr capture, and child cleanup to the spider runner.
 - [x] **Medium** — Ensure one portal attempt failure is recorded and returned without raising out of the overall search run.
-- [ ] **Medium** — Build a search orchestration service that resolves adapters, runs enabled portals, normalizes results, applies local filters, and records every attempt.
+- [x] **Medium** — Build a search orchestration service that resolves adapters, runs enabled portals, normalizes results, applies local filters, and records every attempt.
 - [ ] **Hard** — Ingest a successful portal result transactionally into listings, search matches, active state, price history, and provider-neutral change events.
 - [ ] **Medium** — Preserve randomized portal order and introduce configurable, respectful inter-portal delays without slowing offline tests.
 - [ ] **Medium** — Add concurrency/locking guards that prevent overlapping executions of the same search while allowing independent searches to progress.

@@ -72,6 +72,26 @@ infrastructure without a concrete requirement and an explicit update to
   `TRANSPORT_ERROR` — the function itself never raises. This is the
   per-portal guarantee `services.search_orchestration`'s multi-portal loop
   depends on.
+- `scrapyrealestate/scrapyrealestate/services/`: cross-cutting services built
+  on `execution/` and `persistence/`, beside the legacy flow and not yet
+  consumed by `main.py`. `services/search_orchestration.py`'s
+  `SearchOrchestrationService.run_search(search_record, trigger)` records one
+  `search_runs` row, then for every *enabled* `SearchPortalRecord` resolves
+  its adapter from the `PortalRegistry` (an unregistered portal key is
+  recorded as `UNAVAILABLE`, not raised), runs one attempt via
+  `execution.run_portal_attempt`, normalizes whatever it returned
+  (`adapter.normalize_result`, skipping any single malformed item rather
+  than failing the whole attempt), and keeps every listing that is not a
+  definite local non-match (`domain.filtering.evaluate_listing`; an
+  `unknown` outcome is kept, not excluded, so missing data never silently
+  narrows a search's results). Every attempt — success or failure — is
+  recorded through `RunRepository`, and so is the overall run: `SUCCESS`
+  when every attempted portal was conclusive (`success`/`empty`), `PARTIAL`
+  when only some were, `FAILED` when none were conclusive or no portal was
+  enabled at all. This service does not yet ingest matched listings into
+  `listings`/price history/search matches — that is a separate, later
+  `TASKS.md` item; it only produces the filtered, normalized listings that
+  step will consume.
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: current first-run-only Flask
   server. It writes `data/config.json`; `main.py` then terminates it.
 - `scrapyrealestate/scrapyrealestate/templates/`: current unstyled first-run form
