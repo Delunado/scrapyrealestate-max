@@ -12,7 +12,7 @@ than code complexity.
 - [x] **Easy** — Add an offline pytest scaffold, shared temporary-data fixtures, and smoke tests for importing application modules without performing network calls.
 - [x] **Easy** — Add focused Ruff configuration for the supported Python version, fix only baseline violations needed to enable it, and document the exact lint command.
 - [x] **Easy** — Add a minimal CI workflow that runs offline unit tests, lint, and Compose configuration validation without launching live spiders.
-- [ ] **Medium** — Capture a sanitized Pisos.com HTML fixture and add parser tests that lock down its current normalized fields and missing-field behavior.
+- [x] **Medium** — Capture a sanitized Pisos.com HTML fixture and add parser tests that lock down its current normalized fields and missing-field behavior.
 - [ ] **Medium** — Capture a sanitized Habitaclia HTML fixture and add parser tests that lock down its current normalized fields and related-ad cutoff behavior.
 - [ ] **Medium** — Capture a sanitized Fotocasa embedded-JSON fixture and add parser tests for its current normalized fields and malformed/missing payload behavior.
 - [ ] **Medium** — Capture a sanitized Yaencontre rendered-HTML fixture and add parser tests that lock down its current normalized fields and missing-field behavior.

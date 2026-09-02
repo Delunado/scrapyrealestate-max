@@ -70,7 +70,14 @@ class PisoscomSpider(CrawlSpider):
             if any(k in street_.lower() for k in street_keywords):
                 street = street_
 
-            town_el = flats[nflat].find(class_="p-sm")
+            town_el = next(
+                (
+                    element
+                    for element in flats[nflat].find_all("p", class_="p-sm")
+                    if "ad-preview__char" not in (element.get("class") or [])
+                ),
+                None,
+            )
             town_ = town_el.text.strip() if town_el else ''
             if '(' in town_:
                 neighbour = town_.split('(')[0][:-1]

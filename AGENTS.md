@@ -239,9 +239,10 @@ configuration for lint/type commands rather than inventing local flags. Keep sav
 HTML/JSON fixtures small, sanitized, and free of secrets.
 
 Every behavior change needs focused offline tests. Database tests use temporary
-databases and real migrations. Parser tests use fixtures. Adapter contract tests
-must verify all registered adapters. Mock notifier HTTP boundaries; do not send real
-messages during normal tests.
+databases and real migrations. Parser tests use sanitized UTF-8 snapshots under
+`tests/fixtures/`; Pisos.com coverage is in `tests/test_pisoscom_spider.py`. Adapter
+contract tests must verify all registered adapters. Mock notifier HTTP boundaries;
+do not send real messages during normal tests.
 
 ## Docker and deployment rules
 
