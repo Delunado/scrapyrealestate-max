@@ -128,6 +128,9 @@ infrastructure without a concrete requirement and an explicit update to
   `notifiers/ntfy.py` publishes the same content as JSON to a configurable public
   or self-hosted server/topic, with optional bearer authentication and a mandatory
   bounded timeout; response bodies and exception text never enter diagnostics.
+  `notifiers/webhook.py` posts a stable `1.0` JSON envelope to an HTTP(S) endpoint,
+  supports an optional secret `Authorization` value, and follows the same timeout
+  and safe-diagnostic rules.
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: current first-run-only Flask
   server. It writes `data/config.json`; `main.py` then terminates it.
 - `scrapyrealestate/scrapyrealestate/templates/`: current unstyled first-run form

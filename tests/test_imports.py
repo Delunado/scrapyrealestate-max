@@ -12,6 +12,7 @@ APPLICATION_MODULES = (
     "scrapyrealestate.notifiers",
     "scrapyrealestate.notifiers.ntfy",
     "scrapyrealestate.notifiers.telegram",
+    "scrapyrealestate.notifiers.webhook",
     "scrapyrealestate.proxies",
     "scrapyrealestate.settings",
     "scrapyrealestate.security",
