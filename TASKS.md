@@ -56,7 +56,7 @@ than code complexity.
 - [x] **Medium** — Add the migration for price history with currency, observed time, and uniqueness that prevents duplicate observations.
 - [x] **Medium** — Add the migration for search runs and per-portal attempts, including timing, counts, status, error category, and redacted diagnostic text.
 - [x] **Medium** — Add the migration for notification channels, search/channel assignments, provider-neutral events, and delivery attempts.
-- [ ] **Medium** — Implement and test search CRUD repositories, including enable/disable and per-search schedule/portal updates.
+- [x] **Medium** — Implement and test search CRUD repositories, including enable/disable and per-search schedule/portal updates.
 - [ ] **Medium** — Implement transactional listing upsert and search-match repositories that return new, changed, reappeared, and unchanged outcomes.
 - [ ] **Medium** — Implement price-history recording and price-drop/price-increase detection with idempotency tests.
 - [ ] **Medium** — Implement disappearance/inactive detection scoped to successful search/portal runs so failed or blocked crawls never mark listings absent.
