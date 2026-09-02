@@ -11,6 +11,7 @@ import time
 import urllib.error
 import urllib.request
 from os import path
+from urllib.parse import urlsplit
 
 from art import tprint
 from fake_useragent import UserAgent
@@ -22,6 +23,7 @@ from scrapyrealestate.legacy_config import (
     LegacyConfig,
     load_legacy_config,
 )
+from scrapyrealestate.portals import PortalRegistry, PortalRequestError, build_default_registry
 from scrapyrealestate.runtime import get_runtime_paths
 from scrapyrealestate.security import (
     SecretRedactionFilter,
@@ -36,6 +38,7 @@ __version__ = "3.0.0"
 
 runtime_paths = get_runtime_paths()
 data = LegacyConfig()
+registry: PortalRegistry = build_default_registry()
 
 
 def get_bot_token():
@@ -334,7 +337,6 @@ def run_spider(spider_name, scrapy_log, out_file, start_url):
 def scrap_realestate(telegram_msg):
     scrapy_rs_name = data.scrapy_rs_name.replace("-", "_")
     scrapy_log = data.log_level_scrapy
-    proxy_idealista = data.proxy_idealista
     out_file = str(runtime_paths.crawl_output(scrapy_rs_name))
 
     # todas las claves 'url_*' de la config
@@ -352,34 +354,17 @@ def scrap_realestate(telegram_msg):
         if url == '':
             continue
 
-        portal_url = url.split('/')[2]
-        portal_name = portal_url.split('.')[1]
+        hostname = urlsplit(url).hostname or ''
         try:
-            portal_name_url = portal_url.split('.')[1] + '.' + portal_url.split('.')[2]
-        except IndexError:
-            portal_name = portal_url
-            portal_name_url = ''
+            adapter = registry.get_by_hostname(hostname)
+            request = adapter.build_request(url)
+        except (KeyError, PortalRequestError) as error:
+            logger.warning(f"SKIPPING UNRECOGNIZED OR INVALID URL {url!r}: {error}")
+            continue
 
-        logger.debug(f"SCRAPING PORTAL {portal_name_url} FROM {scrapy_rs_name}...")
-        if portal_name_url == 'idealista.com':
-            url_last_flats = url + '?ordenado-por=fecha-publicacion-desc'
-            if proxy_idealista:
-                logger.debug('IDEALISTA PROXY ACTIVATED')
-                run_spider('idealista_proxy', scrapy_log, out_file, url_last_flats)
-            else:
-                run_spider('idealista', scrapy_log, out_file, url_last_flats)
-        elif portal_name_url == 'pisos.com':
-            url_last_flats = url + '/fecharecientedesde-desc/'
-            run_spider('pisoscom', scrapy_log, out_file, url_last_flats)
-        elif portal_name_url == 'fotocasa.es':
-            run_spider('fotocasa', scrapy_log, out_file, url)
-        elif portal_name_url == 'habitaclia.com':
-            url_last_flats = url + '?ordenar=mas_recientes'
-            run_spider('habitaclia', scrapy_log, out_file, url_last_flats)
-        elif portal_name_url == 'yaencontre.com':
-            url_last_flats = url + '/o-recientes'
-            run_spider('yaencontre', scrapy_log, out_file, url_last_flats)
-
+        portal_name = adapter.metadata.display_name
+        logger.debug(f"SCRAPING PORTAL {portal_name} FROM {scrapy_rs_name}...")
+        run_spider(request.spider_name, scrapy_log, out_file, request.start_url)
         logger.debug(f"CRAWLED {portal_name.upper()}")
 
     # Scrapy con -o concatena varios crawls en el mismo fichero; unimos las partes ('][').
@@ -428,6 +413,8 @@ def init():
     print(f'scrapyrealestate v{__version__}')
 
     get_config()
+    global registry
+    registry = build_default_registry(idealista_proxy=data.proxy_idealista)
     init_logs()
     checks()
 

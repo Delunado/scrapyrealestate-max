@@ -72,8 +72,11 @@ Run `python main.py` from the inner `scrapyrealestate/` directory. The process:
 3. stops the Flask child, configures logging, checks the 300-second minimum interval,
    and sends a Telegram startup/validation message;
 4. refreshes `data/useragent.txt` every ten cycles;
-5. randomizes all configured raw portal URLs and selects a spider with a domain
-   `if/elif` chain;
+5. randomizes all configured raw portal URLs and resolves each one's spider and
+   recent-sort request through `portals.build_default_registry()` (hostname lookup,
+   Idealista's proxy/Playwright choice still config-driven via `proxy_idealista`);
+   a URL with no registered hostname or an unresolvable transaction type is logged
+   and skipped rather than raised;
 6. invokes `scrapy crawl` once per URL, appending every crawl to a shared JSON export;
 7. repairs concatenated JSON arrays, filters only by global min/max price, compares
    integer listing IDs against `data/ids.json`, and sends new matches to Telegram;
@@ -192,9 +195,17 @@ filter encoding exists (a later `TASKS.md` item), every adapter declares
 `portals/registry.py` provides `PortalRegistry` for lookup by stable key
 (`get`) or normalized hostname (`get_by_hostname`, case-insensitive and
 `www.`-agnostic); registration rejects a duplicate portal key or a domain
-already claimed by another adapter. `main.py` does not build or consult a
-registry yet. Adding a portal must not add a new central `if/elif`. Explicitly
-report unsupported filters and distinguish:
+already claimed by another adapter. `portals.build_default_registry(*,
+idealista_proxy=False)` builds the registry `main.py` actually consults:
+`PisoscomAdapter`, `HabitacliaAdapter`, `FotocasaAdapter`, `YaencontreAdapter`,
+and one Idealista adapter chosen by the `idealista_proxy` flag (never both —
+they share `idealista.com`). `main.py`'s `scrap_realestate` resolves each raw
+URL's adapter with `registry.get_by_hostname`, builds its request with
+`adapter.build_request`, and skips (with a logged warning) a URL whose
+hostname is unregistered or whose transaction type the adapter cannot infer,
+rather than raising out of the run. Adding a portal must not add a new
+central `if/elif`; register its adapter in `build_default_registry` instead.
+Explicitly report unsupported filters and distinguish:
 
 - remote filters encoded in a portal URL/request;
 - local filters applied to normalized results;
