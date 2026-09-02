@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from scrapyrealestate.persistence.database import Database
+from scrapyrealestate.domain.notification import NotificationPreferences
 from scrapyrealestate.persistence.migrations import MIGRATIONS, MigrationRunner
 from scrapyrealestate.persistence.notifications import (
     MASKED_SECRET,
@@ -106,3 +107,81 @@ def test_delivery_attempt_identity_is_retry_safe(repository):
     assert repeated_created is False
     assert repeated == first
     assert retry.attempt_number == 2
+
+
+def test_search_event_preferences_default_to_new_listings_and_price_drops(repository):
+    notifications, _, search_id, _ = repository
+
+    preferences = notifications.preferences_for_search(search_id)
+
+    assert preferences == NotificationPreferences()
+    assert preferences.to_dict() == {
+        "new_listing": True,
+        "price_drop": True,
+        "price_increase": False,
+        "reappearance": False,
+    }
+
+
+def test_search_event_preferences_are_configurable_and_persisted(repository):
+    notifications, connection, search_id, listing_id = repository
+    configured = NotificationPreferences(
+        new_listing=False,
+        price_drop=True,
+        price_increase=True,
+        reappearance=True,
+    )
+
+    assert notifications.set_event_preferences(search_id, configured) == configured
+    assert notifications.preferences_for_search(search_id) == configured
+    row = connection.execute(
+        "SELECT * FROM search_notification_preferences WHERE search_id = ?",
+        (search_id,),
+    ).fetchone()
+    assert tuple(
+        row[column]
+        for column in (
+            "notify_new_listing",
+            "notify_price_drop",
+            "notify_price_increase",
+            "notify_reappearance",
+        )
+    ) == (0, 1, 1, 1)
+
+    events = tuple(
+        notifications.create_event(
+            search_id,
+            event_type,
+            f"preference-test:{event_type.value}",
+            datetime(2026, 9, 2, 10, tzinfo=timezone.utc),
+            listing_id=listing_id,
+        ).event
+        for event_type in NotificationEventType
+    )
+    assert [
+        event.event_type
+        for event in notifications.select_enabled_events(search_id, events)
+    ] == [
+        NotificationEventType.PRICE_DROP,
+        NotificationEventType.PRICE_INCREASE,
+        NotificationEventType.REAPPEARANCE,
+    ]
+
+
+def test_preferences_require_an_existing_search_and_matching_events(repository):
+    notifications, _, search_id, listing_id = repository
+    with pytest.raises(LookupError, match="does not exist"):
+        notifications.preferences_for_search(999)
+
+    second_search_id = notifications.connection.execute(
+        "INSERT INTO searches (name, transaction_type) VALUES ('B', 'buy') RETURNING id"
+    ).fetchone()[0]
+    event = notifications.create_event(
+        second_search_id,
+        NotificationEventType.NEW_LISTING,
+        "other-search-event",
+        datetime(2026, 9, 2, 10, tzinfo=timezone.utc),
+        listing_id=listing_id,
+    ).event
+    with pytest.raises(ValueError, match="originate"):
+        notifications.select_enabled_events(search_id, (event,))

@@ -18,6 +18,36 @@ class NotificationEventType(StrEnum):
     REAPPEARANCE = "reappearance"
 
 
+DEFAULT_ENABLED_EVENT_TYPES = frozenset(
+    {
+        NotificationEventType.NEW_LISTING,
+        NotificationEventType.PRICE_DROP,
+    }
+)
+
+
+@dataclass(frozen=True, slots=True)
+class NotificationPreferences:
+    """Per-search event selection, with conservative default noise levels."""
+
+    new_listing: bool = True
+    price_drop: bool = True
+    price_increase: bool = False
+    reappearance: bool = False
+
+    def is_enabled(self, event_type: NotificationEventType) -> bool:
+        if not isinstance(event_type, NotificationEventType):
+            raise TypeError("event_type must be a NotificationEventType")
+        return bool(getattr(self, event_type.value))
+
+    @property
+    def enabled_event_types(self) -> frozenset[NotificationEventType]:
+        return frozenset(event_type for event_type in NotificationEventType if self.is_enabled(event_type))
+
+    def to_dict(self) -> dict[str, bool]:
+        return {event_type.value: self.is_enabled(event_type) for event_type in NotificationEventType}
+
+
 @dataclass(frozen=True, slots=True)
 class NotificationEvent:
     """Complete, provider-independent input for one notification delivery.

@@ -99,7 +99,7 @@ than code complexity.
 ## Phase 6 — Provider-neutral notifications
 
 - [x] **Medium** — Define notifier and notification-event interfaces for new listing, price drop, price increase, and reappearance, with shared safe formatting rules.
-- [ ] **Medium** — Implement event selection/preferences per search so new listings and price drops are enabled by default and optional events remain configurable.
+- [x] **Medium** — Implement event selection/preferences per search so new listings and price drops are enabled by default and optional events remain configurable.
 - [ ] **Medium** — Move Telegram delivery and message formatting behind the notifier interface using only user-supplied configuration.
 - [ ] **Medium** — Implement an ntfy notifier with configurable server/topic/auth, HTTP timeouts, safe error handling, and mocked tests.
 - [ ] **Medium** — Implement a generic HTTP webhook notifier with a versioned JSON payload, optional authorization header, timeouts, and mocked tests.

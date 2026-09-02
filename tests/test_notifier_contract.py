@@ -2,7 +2,12 @@ from datetime import datetime, timezone
 
 import pytest
 
-from scrapyrealestate.domain.notification import NotificationEvent, NotificationEventType
+from scrapyrealestate.domain.notification import (
+    DEFAULT_ENABLED_EVENT_TYPES,
+    NotificationEvent,
+    NotificationEventType,
+    NotificationPreferences,
+)
 from scrapyrealestate.domain.values import PortalKey
 from scrapyrealestate.notifiers import DeliveryResult, format_notification
 from scrapyrealestate.notifiers.formatting import (
@@ -94,3 +99,11 @@ def test_delivery_result_enforces_classified_failures():
     assert failure.error_category == "timeout"
     with pytest.raises(ValueError, match="requires an error category"):
         DeliveryResult(False)
+
+
+def test_notification_preferences_expose_stable_defaults():
+    preferences = NotificationPreferences()
+
+    assert preferences.enabled_event_types == DEFAULT_ENABLED_EVENT_TYPES
+    assert preferences.is_enabled(NotificationEventType.NEW_LISTING) is True
+    assert preferences.is_enabled(NotificationEventType.PRICE_INCREASE) is False

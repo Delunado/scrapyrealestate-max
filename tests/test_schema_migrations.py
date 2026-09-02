@@ -534,3 +534,37 @@ def test_notification_event_deduplication_key_is_unique(migrated_connection):
             """,
             values,
         )
+
+
+def test_notification_preferences_enforce_per_search_boolean_selection(
+    migrated_connection,
+):
+    search_id = _insert_search(migrated_connection)
+    migrated_connection.execute(
+        "INSERT INTO search_notification_preferences (search_id) VALUES (?)",
+        (search_id,),
+    )
+    row = migrated_connection.execute(
+        "SELECT * FROM search_notification_preferences WHERE search_id = ?",
+        (search_id,),
+    ).fetchone()
+    assert (
+        row["notify_new_listing"],
+        row["notify_price_drop"],
+        row["notify_price_increase"],
+        row["notify_reappearance"],
+    ) == (1, 1, 0, 0)
+
+    with pytest.raises(sqlite3.IntegrityError):
+        migrated_connection.execute(
+            """
+            UPDATE search_notification_preferences
+            SET notify_price_increase = 2 WHERE search_id = ?
+            """,
+            (search_id,),
+        )
+
+    migrated_connection.execute("DELETE FROM searches WHERE id = ?", (search_id,))
+    assert migrated_connection.execute(
+        "SELECT count(*) FROM search_notification_preferences"
+    ).fetchone()[0] == 0

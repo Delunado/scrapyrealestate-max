@@ -9,7 +9,10 @@ from datetime import datetime, timezone
 from enum import StrEnum
 from typing import Any
 
-from scrapyrealestate.domain.notification import NotificationEventType
+from scrapyrealestate.domain.notification import (
+    NotificationEventType,
+    NotificationPreferences,
+)
 from scrapyrealestate.persistence.database import transaction
 
 
@@ -190,6 +193,59 @@ class NotificationRepository:
         ).fetchall()
         return tuple(_channel_record(row) for row in rows)
 
+    def preferences_for_search(self, search_id: int) -> NotificationPreferences:
+        if not self._search_exists(search_id):
+            raise LookupError(f"search {search_id} does not exist")
+        row = self.connection.execute(
+            "SELECT * FROM search_notification_preferences WHERE search_id = ?",
+            (search_id,),
+        ).fetchone()
+        if row is None:
+            return NotificationPreferences()
+        return _preferences_record(row)
+
+    def set_event_preferences(
+        self, search_id: int, preferences: NotificationPreferences
+    ) -> NotificationPreferences:
+        if not isinstance(preferences, NotificationPreferences):
+            raise TypeError("preferences must be NotificationPreferences")
+        if not self._search_exists(search_id):
+            raise LookupError(f"search {search_id} does not exist")
+        self.connection.execute(
+            """
+            INSERT INTO search_notification_preferences (
+                search_id, notify_new_listing, notify_price_drop,
+                notify_price_increase, notify_reappearance, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT (search_id) DO UPDATE SET
+                notify_new_listing = excluded.notify_new_listing,
+                notify_price_drop = excluded.notify_price_drop,
+                notify_price_increase = excluded.notify_price_increase,
+                notify_reappearance = excluded.notify_reappearance,
+                updated_at = excluded.updated_at
+            """,
+            (
+                search_id,
+                int(preferences.new_listing),
+                int(preferences.price_drop),
+                int(preferences.price_increase),
+                int(preferences.reappearance),
+                _utc_now(),
+            ),
+        )
+        return self.preferences_for_search(search_id)
+
+    def select_enabled_events(
+        self,
+        search_id: int,
+        events: tuple[NotificationEventRecord, ...],
+    ) -> tuple[NotificationEventRecord, ...]:
+        preferences = self.preferences_for_search(search_id)
+        for event in events:
+            if event.search_id != search_id:
+                raise ValueError("all events must originate from the selected search")
+        return tuple(event for event in events if preferences.is_enabled(event.event_type))
+
     def create_event(
         self,
         search_id: int,
@@ -259,6 +315,14 @@ class NotificationRepository:
             )
         return attempt
 
+    def _search_exists(self, search_id: int) -> bool:
+        return (
+            self.connection.execute(
+                "SELECT 1 FROM searches WHERE id = ?", (search_id,)
+            ).fetchone()
+            is not None
+        )
+
 
 def _channel_record(row: sqlite3.Row) -> NotificationChannelRecord:
     return NotificationChannelRecord(
@@ -299,6 +363,15 @@ def _delivery_record(row: sqlite3.Row) -> DeliveryAttemptRecord:
         redacted_diagnostic=row["redacted_diagnostic"],
         provider_message_id=row["provider_message_id"],
         created_at=row["created_at"],
+    )
+
+
+def _preferences_record(row: sqlite3.Row) -> NotificationPreferences:
+    return NotificationPreferences(
+        new_listing=bool(row["notify_new_listing"]),
+        price_drop=bool(row["notify_price_drop"]),
+        price_increase=bool(row["notify_price_increase"]),
+        reappearance=bool(row["notify_reappearance"]),
     )
 
 

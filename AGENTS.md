@@ -119,7 +119,10 @@ infrastructure without a concrete requirement and an explicit update to
   the synchronous `Notifier`/`DeliveryResult` boundary and the bounded plain-text
   formatter. `domain.notification.NotificationEvent` is the provider-neutral read
   model for all four event types; notifier adapters must not enable HTML/Markdown
-  parsing for listing-supplied text.
+  parsing for listing-supplied text. `domain.notification.NotificationPreferences`
+  enables new-listing and price-drop events by default; overrides for all four event
+  types are stored per search in `search_notification_preferences` and applied by
+  `NotificationRepository.select_enabled_events`.
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: current first-run-only Flask
   server. It writes `data/config.json`; `main.py` then terminates it.
 - `scrapyrealestate/scrapyrealestate/templates/`: current unstyled first-run form
