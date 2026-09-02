@@ -1,5 +1,7 @@
 from scrapy.http import HtmlResponse, Request
 
+from scrapyrealestate.domain.legacy_mapper import map_legacy_item
+from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.spiders.habitaclia_spider import HabitacliaSpider
 
 
@@ -45,3 +47,22 @@ def test_parse_habitaclia_stops_at_related_ad(load_fixture):
     listings = parse_fixture(load_fixture("habitaclia/search_results.html"))
 
     assert len(listings) == 1
+
+
+def test_every_habitaclia_result_satisfies_normalized_boundary(load_fixture):
+    normalized = [
+        map_legacy_item(item)
+        for item in parse_fixture(load_fixture("habitaclia/search_results.html"))
+    ]
+
+    assert len(normalized) == 1
+    listing = normalized[0]
+    assert listing.portal is PortalKey.HABITACLIA
+    assert listing.transaction_type is TransactionType.RENT
+    assert listing.price_euros == 1_250
+    assert listing.area_sqm == 85
+    assert listing.rooms == 3
+    assert listing.canonical_url == (
+        "https://www.habitaclia.com/"
+        "alquiler-piso-calle_de_alcala_12-madrid-i123456789.htm"
+    )

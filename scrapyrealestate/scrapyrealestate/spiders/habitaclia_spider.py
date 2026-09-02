@@ -1,8 +1,11 @@
 import re
+from urllib.parse import urljoin
 
 import scrapy
-from scrapy.spiders import CrawlSpider
 from bs4 import BeautifulSoup
+from scrapy.spiders import CrawlSpider
+
+from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.items import ScrapyrealestateItem
 
 
@@ -30,24 +33,25 @@ class HabitacliaSpider(CrawlSpider):
     }
 
     def parse(self, response):
-        items = ScrapyrealestateItem()
         soup = BeautifulSoup(response.text, 'lxml')
         # Cada vivienda es un div.list-item.
         flats = soup.find_all("div", {"class": "list-item"})
 
         # Obtenemos si es alquiler o compra a partir de la url
         if self.start_urls.split('/')[3].split('-')[0] == 'alquiler':
-            type = 'rent'
+            transaction_type = TransactionType.RENT
         elif self.start_urls.split('/')[3].split('-')[0] == 'venta':
-            type = 'buy'
+            transaction_type = TransactionType.BUY
         else:
-            type = ''
+            return
 
         for nflat in range(len(flats)):
             try:
                 title = flats[nflat].find("h3", {"class": "list-item-title"}).find("a").text.strip()
             except AttributeError:
                 title = ''
+            if not title:
+                continue
             # Municipio, calle y barrio. Ejemplos de titulo:
             #   "Alquiler Piso Calle de Alcala. Magnifico piso..."
             #   "Madrid - Centro"
@@ -97,7 +101,7 @@ class HabitacliaSpider(CrawlSpider):
             link_el = link_el.find("a", href=True) if link_el else None
             if link_el is None:
                 continue  # tarjeta sin enlace: la saltamos
-            href = link_el['href']
+            href = urljoin(response.url, link_el['href'])
 
             try:
                 price = flats[nflat].find("span", {"class": "font-2"}).text.strip()
@@ -123,11 +127,12 @@ class HabitacliaSpider(CrawlSpider):
             floor = ''
 
             # id sintetico (habitaciones + precio + m2): el listado no trae id real.
-            id = ''.join(c for c in rooms if c.isdigit()) + \
-                 ''.join(c for c in price if c.isdigit()) + \
-                 ''.join(c for c in m2 if c.isdigit())
+            listing_id = ''.join(c for c in rooms if c.isdigit()) + \
+                         ''.join(c for c in price if c.isdigit()) + \
+                         ''.join(c for c in m2 if c.isdigit())
 
-            items['id'] = id
+            items = ScrapyrealestateItem()
+            items['id'] = listing_id
             items['price'] = price.replace(' ', '') + '/mes'
             items['m2'] = m2
             items['rooms'] = rooms
@@ -136,10 +141,10 @@ class HabitacliaSpider(CrawlSpider):
             items['neighbour'] = neighbour
             items['street'] = street
             items['number'] = number
-            items['type'] = type
+            items['type'] = transaction_type.value
             items['title'] = title
             items['href'] = href
-            items['site'] = 'habitaclia'
+            items['site'] = PortalKey.HABITACLIA.value
 
             yield items
 
