@@ -54,6 +54,16 @@ infrastructure without a concrete requirement and an explicit update to
   file and the legacy concatenated-JSON-array repair step
   (`main.scrap_realestate`'s `\n][` -> `,` patch) becomes unnecessary rather
   than needing a stricter parser for the same shared-file shape.
+  `execution/runner.py`'s `SpiderRunner` replaces `main.run_spider`'s bare
+  `subprocess.run(..., check=False)`: it applies `PortalRunRequest.
+  timeout_seconds`, classifies a non-zero return code as `transport_error`
+  and a `read_jsonl_items` decode failure as `parser_error`, bounds
+  captured stderr to a fixed byte budget as the result's diagnostic, and
+  best-effort kills the child (its whole process group on POSIX) on
+  timeout. `run()` never raises — every failure mode becomes a
+  `PortalRunResult`. Its subprocess command is pluggable
+  (`build_command`) precisely so tests never need Scrapy installed; see
+  `tests/fixtures/execution/fake_spider.py`.
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: current first-run-only Flask
   server. It writes `data/config.json`; `main.py` then terminates it.
 - `scrapyrealestate/scrapyrealestate/templates/`: current unstyled first-run form

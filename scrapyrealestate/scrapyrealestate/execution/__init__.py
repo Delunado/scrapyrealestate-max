@@ -15,6 +15,7 @@ from scrapyrealestate.execution.contract import (
     PortalRunResult,
 )
 from scrapyrealestate.execution.output import OutputDecodeError, read_jsonl_items
+from scrapyrealestate.execution.runner import SpiderRunner, default_scrapy_command
 
 __all__ = [
     "CONCLUSIVE_STATUSES",
@@ -23,5 +24,7 @@ __all__ = [
     "OutputDecodeError",
     "PortalRunRequest",
     "PortalRunResult",
+    "SpiderRunner",
+    "default_scrapy_command",
     "read_jsonl_items",
 ]
