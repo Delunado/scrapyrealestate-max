@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -41,7 +41,7 @@ class LegacyConfig:
     log_level_scrapy: str = "WARNING"
     time_update: int = 900
     telegram_chatuser_id: str = ""
-    telegram_bot_token: str = ""
+    telegram_bot_token: str = field(default="", repr=False)
     start_msg: bool = True
     min_price: int = 0
     max_price: int = 0

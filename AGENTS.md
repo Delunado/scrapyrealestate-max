@@ -197,13 +197,13 @@ deliver them. Telegram must not be imported by spiders, persistence, scheduler, 
 domain modules. Add ntfy and generic HTTP webhook behind the same interface. Record
 delivery attempts sufficiently to avoid duplicate delivery on restart.
 
-There is a hard-coded shared Telegram fallback token in the current legacy
-`main.py`. Treat its removal as a priority roadmap task; never copy or expose it in
-new code, logs, tests, documentation, status responses, or commits. User-provided
-secrets may be persisted for UI editing in the local data store, but must be masked
-on read forms, excluded from normal object representations, and redacted from logs
-and error details. Environment-based secret overrides should remain possible for
-unattended deployments.
+Telegram requires a user-supplied token in legacy configuration or the
+`TELEGRAM_BOT_TOKEN` environment override; there is no shared fallback credential.
+Never expose user-provided secrets in new code, logs, tests, documentation, status
+responses, or commits. Secrets persisted for UI editing in the local data store
+must be masked on read forms, excluded from normal object representations, and
+redacted from logs and error details. Environment-based secret overrides remain
+available for unattended deployments.
 
 ## Tests and checks
 

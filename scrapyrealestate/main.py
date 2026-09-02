@@ -2,8 +2,6 @@
 import re
 import json
 import logging
-import os
-import os.path
 import random
 import subprocess
 import sys
@@ -18,6 +16,12 @@ from fake_useragent import UserAgent
 
 from scrapyrealestate.legacy_config import LegacyConfig, load_legacy_config
 from scrapyrealestate.runtime import get_runtime_paths
+from scrapyrealestate.security import (
+    SecretRedactionFilter,
+    SecretRedactingFormatter,
+    configured_telegram_secrets,
+    resolve_telegram_bot_token,
+)
 
 
 __license__ = "GPL"
@@ -25,18 +29,8 @@ __version__ = "3.0.0"
 
 runtime_paths = get_runtime_paths()
 
-# Bot público por defecto. Se puede sobreescribir en la web de configuración
-# o con la variable de entorno TELEGRAM_BOT_TOKEN (ver get_bot_token).
-DEFAULT_BOT_TOKEN = '5042109408:AAHBrCsNiuI3lXBEiLjmyxqXapX4h1LHbJs'
-
-
 def get_bot_token():
-    # Prioridad: token de la web (config.json) > variable de entorno > por defecto.
-    try:
-        token = data.telegram_bot_token
-    except NameError:
-        token = ''
-    return token or os.environ.get('TELEGRAM_BOT_TOKEN') or DEFAULT_BOT_TOKEN
+    return resolve_telegram_bot_token(data)
 
 # Por si fake-useragent falla.
 FALLBACK_USER_AGENT = (
@@ -66,8 +60,15 @@ def init_logs():
 
     ch = logging.StreamHandler()
     ch.setLevel(log_level)
-    ch.setFormatter(logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s',
-                                      "%Y-%m-%d %H:%M:%S"))
+    configured_secrets = configured_telegram_secrets(data)
+    ch.setFormatter(
+        SecretRedactingFormatter(
+            '[%(asctime)s] [%(levelname)s] %(message)s',
+            "%Y-%m-%d %H:%M:%S",
+            secrets=configured_secrets,
+        )
+    )
+    ch.addFilter(SecretRedactionFilter(configured_secrets))
     logger.addHandler(ch)
 
     return logger

@@ -115,7 +115,8 @@ Parámetros:
 - `log_level_scrapy`: nivel de log de Scrapy (por defecto `WARNING`).
 - `time_update`: segundos entre búsquedas (mínimo 300).
 - `telegram_chatuserID`: el chat id de tu canal (ver abajo).
-- `telegram_bot_token`: token de tu bot de @BotFather. Opcional (ver nota abajo).
+- `telegram_bot_token`: token de tu bot de @BotFather. También se puede definir
+  mediante la variable de entorno `TELEGRAM_BOT_TOKEN`, que tiene prioridad.
 - `start_msg`: si es `True`, manda un mensaje al arrancar.
 - `min_price` / `max_price`: rango de precio (`max_price = 0` es sin límite).
 - `url_idealista` / `url_pisoscom` / `url_fotocasa` / `url_habitaclia` /
@@ -123,8 +124,8 @@ Parámetros:
 - `proxy_idealista`: proxies rotatorios para Idealista (`on`); por defecto off.
 - `send_first`: si se activa, avisa también de lo que ya hay en el primer ciclo.
 
-El `telegram_bot_token` es opcional: si lo dejas vacío se usa un bot público por
-defecto.
+Debes proporcionar tu propio `telegram_bot_token` en la configuración o mediante
+`TELEGRAM_BOT_TOKEN`; no existe una credencial compartida de reserva.
 
 ### Canal de Telegram y chat id
 

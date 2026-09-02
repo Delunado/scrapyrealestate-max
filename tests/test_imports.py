@@ -10,6 +10,7 @@ APPLICATION_MODULES = (
     "scrapyrealestate.legacy_config",
     "scrapyrealestate.proxies",
     "scrapyrealestate.settings",
+    "scrapyrealestate.security",
     "scrapyrealestate.spiders.fotocasa_spider",
     "scrapyrealestate.spiders.habitaclia_spider",
     "scrapyrealestate.spiders.idealista_spider",
