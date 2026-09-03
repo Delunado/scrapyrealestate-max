@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from scrapyrealestate.persistence.listings import ListingQueryRepository
     from scrapyrealestate.notifiers.registry import NotifierRegistry
     from scrapyrealestate.persistence.notifications import NotificationRepository
+    from scrapyrealestate.persistence.prices import PriceHistoryRepository
     from scrapyrealestate.persistence.runs import RunRepository
     from scrapyrealestate.persistence.searches import SearchRepository
     from scrapyrealestate.services.search_orchestration import (
@@ -53,6 +54,7 @@ class WebRepositories:
     runs: RunRepository | None = None
     notifications: NotificationRepository | None = None
     listings: ListingQueryRepository | None = None
+    prices: PriceHistoryRepository | None = None
 
 
 @dataclass(frozen=True, slots=True)

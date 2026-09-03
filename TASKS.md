@@ -143,7 +143,7 @@ than code complexity.
 
 - [x] **Medium** — Add a paginated recent-listings page with search, portal, event type, and active/inactive filters.
 - [x] **Easy** — Add listing rows/cards with normalized price, area, price/m², rooms, status, first/last seen, source portal, and safe external link.
-- [ ] **Medium** — Add a listing detail page showing all matching searches and chronological price history without becoming a CRM.
+- [x] **Medium** — Add a listing detail page showing all matching searches and chronological price history without becoming a CRM.
 - [ ] **Medium** — Add dedicated views/filters for newly discovered listings, price drops, reappearances, and inactive listings.
 - [ ] **Medium** — Add a search-run detail page with per-portal duration, returned/matched/new counts, status category, and redacted error summary.
 - [ ] **Medium** — Add portal health summaries based on recent attempts while distinguishing unavailable, blocked, parser failure, and empty success.

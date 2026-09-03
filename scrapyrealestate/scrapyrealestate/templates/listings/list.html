@@ -24,7 +24,7 @@
   {% for listing in listings.items %}
   <article class="card listing-card">
     <div class="listing-card-heading">
-      <div><span class="eyebrow">{{ listing.portal.value }}</span><h2>{{ listing.title }}</h2></div>
+      <div><span class="eyebrow">{{ listing.portal.value }}</span><h2><a href="{{ url_for('ui.listing_detail', listing_id=listing.id) }}">{{ listing.title }}</a></h2></div>
       <span class="badge {{ 'badge-on' if listing.active else 'badge-warning' }}">{{ 'Activo' if listing.active else 'Inactivo' }}</span>
     </div>
     <dl class="listing-facts">

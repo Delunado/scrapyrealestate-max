@@ -12,7 +12,13 @@ from urllib.parse import urlsplit
 
 from scrapyrealestate.domain.listing import NormalizedListing
 from scrapyrealestate.domain.notification import NotificationEventType
-from scrapyrealestate.domain.values import PortalKey, RunStatus
+from scrapyrealestate.domain.values import (
+    PortalKey,
+    PropertyType,
+    RunStatus,
+    TransactionType,
+    TriState,
+)
 from scrapyrealestate.persistence.database import transaction
 
 
@@ -99,6 +105,33 @@ class ListingPage:
         return self.page < self.pages
 
 
+@dataclass(frozen=True, slots=True)
+class ListingDetailRecord:
+    summary: ListingSummaryRecord
+    external_id: str | None
+    transaction_type: TransactionType
+    property_type: PropertyType
+    bathrooms: int | None
+    floor: int | None
+    elevator: TriState
+    terrace: TriState
+    garage: TriState
+    location: str | None
+    neighbourhood: str | None
+    street: str | None
+    street_number: str | None
+    posted_at: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class ListingSearchMatchRecord:
+    search_id: int
+    search_name: str
+    active: bool
+    first_seen_at: str
+    last_seen_at: str
+
+
 class ListingQueryRepository:
     """Read-only listing history queries for operational web views."""
 
@@ -180,6 +213,54 @@ class ListingQueryRepository:
             page=page,
             per_page=per_page,
             total=total,
+        )
+
+    def get(self, listing_id: int) -> ListingDetailRecord:
+        row = self.connection.execute(
+            "SELECT * FROM listings WHERE id = ?", (listing_id,)
+        ).fetchone()
+        if row is None:
+            raise LookupError(f"listing {listing_id} does not exist")
+        return ListingDetailRecord(
+            summary=_summary_record(row),
+            external_id=row["external_id"],
+            transaction_type=TransactionType(row["transaction_type"]),
+            property_type=PropertyType(row["property_type"]),
+            bathrooms=row["bathrooms"],
+            floor=row["floor"],
+            elevator=TriState(row["elevator"]),
+            terrace=TriState(row["terrace"]),
+            garage=TriState(row["garage"]),
+            location=row["location"],
+            neighbourhood=row["neighbourhood"],
+            street=row["street"],
+            street_number=row["street_number"],
+            posted_at=row["posted_at"],
+        )
+
+    def matches_for_listing(
+        self, listing_id: int
+    ) -> tuple[ListingSearchMatchRecord, ...]:
+        rows = self.connection.execute(
+            """
+            SELECT matches.search_id, searches.name AS search_name,
+                   matches.active, matches.first_seen_at, matches.last_seen_at
+            FROM search_listing_matches AS matches
+            JOIN searches ON searches.id = matches.search_id
+            WHERE matches.listing_id = ?
+            ORDER BY searches.name COLLATE NOCASE, searches.id
+            """,
+            (listing_id,),
+        ).fetchall()
+        return tuple(
+            ListingSearchMatchRecord(
+                search_id=row["search_id"],
+                search_name=row["search_name"],
+                active=bool(row["active"]),
+                first_seen_at=row["first_seen_at"],
+                last_seen_at=row["last_seen_at"],
+            )
+            for row in rows
         )
 
 

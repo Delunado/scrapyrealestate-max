@@ -90,6 +90,36 @@ def test_recent_listings_combine_search_portal_event_and_state_filters(listing_q
     assert repository.recent(active=True, event_type=NotificationEventType.PRICE_DROP).total == 0
 
 
+def test_listing_detail_returns_all_matching_searches(listing_queries):
+    repository, first_search, second_search = listing_queries
+    listing_id = repository.recent(search_id=first_search).items[0].id
+    repository.connection.execute(
+        """
+        INSERT INTO search_listing_matches (
+            search_id, listing_id, first_seen_at, last_seen_at, active
+        ) VALUES (?, ?, '2026-09-03T11:00:00Z', '2026-09-03T12:00:00Z', 0)
+        """,
+        (second_search, listing_id),
+    )
+
+    detail = repository.get(listing_id)
+    matches = repository.matches_for_listing(listing_id)
+
+    assert detail.summary.title == "Primero"
+    assert detail.transaction_type.value == "buy"
+    assert [(match.search_name, match.active) for match in matches] == [
+        ("Centro", True),
+        ("Norte", False),
+    ]
+
+
+def test_missing_listing_detail_raises_lookup_error(listing_queries):
+    repository, _first_search, _second_search = listing_queries
+
+    with pytest.raises(LookupError):
+        repository.get(999)
+
+
 def _insert_listing(connection, portal, external_id, title, last_seen_at, active):
     return connection.execute(
         """

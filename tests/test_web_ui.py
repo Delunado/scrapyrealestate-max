@@ -240,7 +240,38 @@ def test_recent_listings_page_filters_and_rejects_invalid_queries(web_app):
     assert "180.000 €" in page
     assert "2.000 €/m²" in page
     assert 'rel="noopener noreferrer"' in page
+    search_id = connection.execute(
+        "INSERT INTO searches (name, transaction_type) VALUES ('Historial', 'rent') RETURNING id"
+    ).fetchone()[0]
+    connection.execute(
+        """
+        INSERT INTO search_listing_matches (
+            search_id, listing_id, first_seen_at, last_seen_at
+        ) VALUES (?, ?, '2026-09-03T10:00:00Z', '2026-09-03T11:00:00Z')
+        """,
+        (search_id, listing_id),
+    )
+    connection.executemany(
+        """
+        INSERT INTO listing_price_history (listing_id, price_euros, observed_at)
+        VALUES (?, ?, ?)
+        """,
+        (
+            (listing_id, 190000, "2026-09-03T10:00:00Z"),
+            (listing_id, 180000, "2026-09-03T11:00:00Z"),
+        ),
+    )
+
+    detail = app.test_client().get(f"/listings/{listing_id}")
+    detail_page = detail.get_data(as_text=True)
+    assert detail.status_code == 200
+    assert "Búsquedas coincidentes" in detail_page
+    assert "Historial" in detail_page
+    assert detail_page.index("2026-09-03T10:00:00Z") < detail_page.rindex(
+        "2026-09-03T11:00:00Z"
+    )
     assert app.test_client().get("/listings?page=0").status_code == 400
+    assert app.test_client().get("/listings/999").status_code == 404
 
 
 def test_channel_crud_masks_secrets_and_records_safe_test(web_app):

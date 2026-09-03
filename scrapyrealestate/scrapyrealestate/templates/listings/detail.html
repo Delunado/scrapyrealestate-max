@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{{ listing.summary.title }} · ScrapyRealEstate{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div><span class="eyebrow">{{ listing.summary.portal.value }}</span><h1>{{ listing.summary.title }}</h1><p><span class="badge {{ 'badge-on' if listing.summary.active else 'badge-warning' }}">{{ 'Activo' if listing.summary.active else 'Inactivo' }}</span></p></div>
+  <a href="{{ url_for('ui.listing_list') }}">Volver a anuncios</a>
+</div>
+<section class="card">
+  <h2>Datos normalizados</h2>
+  <dl class="listing-facts">
+    <div><dt>Precio</dt><dd>{{ listing.summary.price_euros|euros }}</dd></div>
+    <div><dt>Superficie</dt><dd>{{ listing.summary.area_sqm|area }}</dd></div>
+    <div><dt>Precio/m²</dt><dd>{{ listing.summary.price_per_sqm|price_per_sqm }}</dd></div>
+    <div><dt>Habitaciones</dt><dd>{{ listing.summary.rooms if listing.summary.rooms is not none else '—' }}</dd></div>
+    <div><dt>Baños</dt><dd>{{ listing.bathrooms if listing.bathrooms is not none else '—' }}</dd></div>
+    <div><dt>Planta</dt><dd>{{ listing.floor if listing.floor is not none else '—' }}</dd></div>
+    <div><dt>Tipo</dt><dd>{{ listing.property_type.value }}</dd></div>
+    <div><dt>Operación</dt><dd>{{ listing.transaction_type.value }}</dd></div>
+    <div><dt>Localidad</dt><dd>{{ listing.location or '—' }}</dd></div>
+    <div><dt>Barrio</dt><dd>{{ listing.neighbourhood or '—' }}</dd></div>
+    <div><dt>Ascensor</dt><dd>{{ listing.elevator.value }}</dd></div>
+    <div><dt>Terraza</dt><dd>{{ listing.terrace.value }}</dd></div>
+    <div><dt>Garaje</dt><dd>{{ listing.garage.value }}</dd></div>
+    <div><dt>Primera vez</dt><dd>{{ listing.summary.first_seen_at }}</dd></div>
+    <div><dt>Última vez</dt><dd>{{ listing.summary.last_seen_at }}</dd></div>
+  </dl>
+  {% if listing.summary.external_url %}<a href="{{ listing.summary.external_url }}" target="_blank" rel="noopener noreferrer">Abrir anuncio original</a>{% endif %}
+</section>
+<section>
+  <h2>Búsquedas coincidentes</h2>
+  {% if matches %}<div class="table-wrap"><table><thead><tr><th>Búsqueda</th><th>Estado</th><th>Primera vez</th><th>Última vez</th></tr></thead><tbody>{% for match in matches %}<tr><td><a href="{{ url_for('ui.search_edit', search_id=match.search_id) }}">{{ match.search_name }}</a></td><td>{{ 'Activa' if match.active else 'Inactiva' }}</td><td>{{ match.first_seen_at }}</td><td>{{ match.last_seen_at }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="muted">Ya no coincide con ninguna búsqueda guardada.</p>{% endif %}
+</section>
+<section>
+  <h2>Historial de precios</h2>
+  {% if prices %}<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Precio</th><th>Moneda</th></tr></thead><tbody>{% for price in prices %}<tr><td>{{ price.observed_at }}</td><td>{{ price.price_euros|euros }}</td><td>{{ price.currency }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="muted">No hay observaciones de precio.</p>{% endif %}
+</section>
+{% endblock %}

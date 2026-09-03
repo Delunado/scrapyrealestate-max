@@ -28,6 +28,7 @@ from scrapyrealestate.persistence.legacy_seen import LegacySeenRepository
 from scrapyrealestate.persistence.listings import ListingQueryRepository
 from scrapyrealestate.persistence.migrations import MIGRATIONS, MigrationRunner
 from scrapyrealestate.persistence.notifications import NotificationRepository
+from scrapyrealestate.persistence.prices import PriceHistoryRepository
 from scrapyrealestate.persistence.runs import RunRepository
 from scrapyrealestate.persistence.searches import SearchRepository
 from scrapyrealestate.notifiers.registry import (
@@ -180,6 +181,7 @@ def build_application(
                 runs=runs,
                 notifications=notifications,
                 listings=ListingQueryRepository(connection),
+                prices=PriceHistoryRepository(connection),
             ),
             services=WebServices(
                 orchestration=orchestration,

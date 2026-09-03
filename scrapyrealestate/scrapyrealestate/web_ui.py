@@ -154,6 +154,23 @@ def listing_list():
     )
 
 
+@ui.get("/listings/<int:listing_id>")
+def listing_detail(listing_id: int):
+    try:
+        listing = _listings().get(listing_id)
+    except LookupError:
+        abort(404)
+    prices = _repositories().prices
+    if prices is None:
+        abort(503)
+    return render_template(
+        "listings/detail.html",
+        listing=listing,
+        matches=_listings().matches_for_listing(listing_id),
+        prices=prices.list_for_listing(listing_id),
+    )
+
+
 @ui.route("/searches/new", methods=["GET", "POST"])
 def search_create():
     if request.method == "GET":
@@ -617,6 +634,7 @@ def _repositories():
     from scrapyrealestate.flask_server import WebRepositories
     from scrapyrealestate.persistence.listings import ListingQueryRepository
     from scrapyrealestate.persistence.notifications import NotificationRepository
+    from scrapyrealestate.persistence.prices import PriceHistoryRepository
     from scrapyrealestate.persistence.runs import RunRepository
     from scrapyrealestate.persistence.searches import SearchRepository
 
@@ -627,6 +645,7 @@ def _repositories():
         runs=RunRepository(connection),
         notifications=NotificationRepository(connection),
         listings=ListingQueryRepository(connection),
+        prices=PriceHistoryRepository(connection),
     )
     g.scrapyrealestate_repositories = repositories
     return repositories
