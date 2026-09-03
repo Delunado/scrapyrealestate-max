@@ -51,6 +51,7 @@ class SearchRecord:
     portals: tuple[SearchPortalRecord, ...]
     created_at: str
     updated_at: str
+    unknown_filter_fields: dict[str, Any] | None = None
 
 
 class SearchRepository:
@@ -143,13 +144,64 @@ class SearchRepository:
             (
                 search.name,
                 search.transaction_type.value,
-                _json(search.filters.to_dict()),
+                _json(self._merged_filters(search_id, search.filters)),
                 now,
                 search_id,
                 expected_version,
             ),
         )
         self._raise_update_error(search_id, cursor.rowcount)
+        return self.get(search_id)
+
+    def update_configuration(
+        self,
+        search_id: int,
+        search: NormalizedSearch,
+        *,
+        interval_seconds: int,
+        portals: tuple[SearchPortalRecord, ...],
+        expected_version: int,
+        enabled: bool,
+    ) -> SearchRecord:
+        """Atomically update a complete web-editable search aggregate.
+
+        Unknown filter keys already stored by a newer application version are
+        retained, while the submitted normalized fields replace only the keys
+        this version understands.
+        """
+        now = _utc_now()
+        with transaction(self.connection, immediate=True):
+            cursor = self.connection.execute(
+                """
+                UPDATE searches
+                SET name = ?, transaction_type = ?, filters_json = ?, enabled = ?,
+                    version = version + 1, updated_at = ?
+                WHERE id = ? AND version = ?
+                """,
+                (
+                    search.name,
+                    search.transaction_type.value,
+                    _json(self._merged_filters(search_id, search.filters)),
+                    int(enabled),
+                    now,
+                    search_id,
+                    expected_version,
+                ),
+            )
+            self._raise_update_error(search_id, cursor.rowcount)
+            self.connection.execute(
+                """
+                UPDATE search_schedules
+                SET interval_seconds = ?, next_run_at = NULL,
+                    last_scheduled_at = NULL, updated_at = ?
+                WHERE search_id = ?
+                """,
+                (interval_seconds, now, search_id),
+            )
+            self.connection.execute(
+                "DELETE FROM search_portals WHERE search_id = ?", (search_id,)
+            )
+            self._replace_portals(search_id, portals)
         return self.get(search_id)
 
     def set_enabled(self, search_id: int, enabled: bool) -> SearchRecord:
@@ -268,6 +320,19 @@ class SearchRepository:
             is not None
         )
 
+    def _merged_filters(
+        self, search_id: int, filters: SearchFilters
+    ) -> dict[str, Any]:
+        row = self.connection.execute(
+            "SELECT filters_json FROM searches WHERE id = ?", (search_id,)
+        ).fetchone()
+        if row is None:
+            raise SearchNotFoundError(f"search {search_id} does not exist")
+        stored = json.loads(row["filters_json"])
+        known = filters.to_dict()
+        unknown = {key: value for key, value in stored.items() if key not in known}
+        return {**unknown, **known}
+
     def _raise_update_error(self, search_id: int, rowcount: int) -> None:
         if rowcount:
             return
@@ -277,7 +342,11 @@ class SearchRepository:
 
 
 def _record(row: sqlite3.Row, portal_rows: list[sqlite3.Row]) -> SearchRecord:
-    filters = SearchFilters.from_dict(json.loads(row["filters_json"]))
+    stored_filters = json.loads(row["filters_json"])
+    known_names = set(SearchFilters().to_dict())
+    filters = SearchFilters.from_dict(
+        {key: value for key, value in stored_filters.items() if key in known_names}
+    )
     return SearchRecord(
         id=row["id"],
         search=NormalizedSearch(
@@ -303,6 +372,9 @@ def _record(row: sqlite3.Row, portal_rows: list[sqlite3.Row]) -> SearchRecord:
         ),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
+        unknown_filter_fields={
+            key: value for key, value in stored_filters.items() if key not in known_names
+        },
     )
 
 

@@ -105,6 +105,16 @@ class DeliveryCompletion:
     retry: DeliveryAttemptRecord | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class NotificationChannelTestRecord:
+    id: int
+    channel_id: int
+    success: bool
+    error_category: str | None
+    redacted_diagnostic: str | None
+    tested_at: str
+
+
 class StaleDeliveryClaimError(RuntimeError):
     """A worker tried to finish a claim it no longer owns."""
 
@@ -153,6 +163,65 @@ class NotificationRepository:
                 "SELECT * FROM notification_channels ORDER BY name COLLATE NOCASE, id"
             ).fetchall()
         )
+
+    def recent_events(
+        self, *, limit: int = 10
+    ) -> tuple[NotificationEventRecord, ...]:
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100:
+            raise ValueError("limit must be between 1 and 100")
+        rows = self.connection.execute(
+            """
+            SELECT * FROM notification_events
+            ORDER BY datetime(occurred_at) DESC, id DESC LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        return tuple(_event_record(row) for row in rows)
+
+    def record_channel_test(
+        self,
+        channel_id: int,
+        *,
+        success: bool,
+        tested_at: datetime,
+        error_category: str | None = None,
+        diagnostic: str | None = None,
+    ) -> NotificationChannelTestRecord:
+        if success:
+            error_category = None
+            diagnostic = None
+        elif not error_category or not error_category.strip():
+            raise ValueError("failed channel test requires an error category")
+        test_id = self.connection.execute(
+            """
+            INSERT INTO notification_channel_tests (
+                channel_id, success, error_category, redacted_diagnostic, tested_at
+            ) VALUES (?, ?, ?, ?, ?) RETURNING id
+            """,
+            (
+                channel_id,
+                int(success),
+                error_category.strip() if error_category else None,
+                _bounded_diagnostic(diagnostic),
+                _timestamp(tested_at),
+            ),
+        ).fetchone()[0]
+        row = self.connection.execute(
+            "SELECT * FROM notification_channel_tests WHERE id = ?", (test_id,)
+        ).fetchone()
+        return _channel_test_record(row)
+
+    def latest_channel_test(
+        self, channel_id: int
+    ) -> NotificationChannelTestRecord | None:
+        row = self.connection.execute(
+            """
+            SELECT * FROM notification_channel_tests
+            WHERE channel_id = ? ORDER BY datetime(tested_at) DESC, id DESC LIMIT 1
+            """,
+            (channel_id,),
+        ).fetchone()
+        return _channel_test_record(row) if row is not None else None
 
     def update_channel(
         self,
@@ -209,6 +278,38 @@ class NotificationRepository:
                 (search_id, channel_id),
             ).rowcount
         )
+
+    def update_search_settings(
+        self,
+        search_id: int,
+        *,
+        channel_ids: frozenset[int],
+        preferences: NotificationPreferences,
+    ) -> None:
+        """Atomically replace channel assignments and event preferences."""
+        if not self._search_exists(search_id):
+            raise LookupError(f"search {search_id} does not exist")
+        known_ids = {
+            row["id"]
+            for row in self.connection.execute(
+                "SELECT id FROM notification_channels"
+            ).fetchall()
+        }
+        if not channel_ids <= known_ids:
+            raise LookupError("one or more notification channels do not exist")
+        with transaction(self.connection, immediate=True):
+            self.connection.execute(
+                "DELETE FROM search_notification_channels WHERE search_id = ?",
+                (search_id,),
+            )
+            self.connection.executemany(
+                """
+                INSERT INTO search_notification_channels (search_id, channel_id)
+                VALUES (?, ?)
+                """,
+                ((search_id, channel_id) for channel_id in sorted(channel_ids)),
+            )
+            self.set_event_preferences(search_id, preferences)
 
     def channels_for_search(
         self, search_id: int, *, enabled_only: bool = True
@@ -640,6 +741,17 @@ def _delivery_record(row: sqlite3.Row) -> DeliveryAttemptRecord:
         created_at=row["created_at"],
         available_at=row["available_at"],
         lease_expires_at=row["lease_expires_at"],
+    )
+
+
+def _channel_test_record(row: sqlite3.Row) -> NotificationChannelTestRecord:
+    return NotificationChannelTestRecord(
+        id=row["id"],
+        channel_id=row["channel_id"],
+        success=bool(row["success"]),
+        error_category=row["error_category"],
+        redacted_diagnostic=row["redacted_diagnostic"],
+        tested_at=row["tested_at"],
     )
 
 

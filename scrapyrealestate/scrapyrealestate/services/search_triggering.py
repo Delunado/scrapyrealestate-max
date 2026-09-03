@@ -13,7 +13,9 @@ class SearchLookup(Protocol):
 
 
 class SearchOrchestrator(Protocol):
-    def run_search(self, search_record: SearchRecord, trigger: TriggerKind) -> object: ...
+    def run_search(
+        self, search_record: SearchRecord, trigger: TriggerKind, *, on_run_created=None
+    ) -> object: ...
 
 
 class SearchTriggerService:
@@ -23,7 +25,9 @@ class SearchTriggerService:
         self._searches = searches
         self._orchestration = orchestration
 
-    def run_search(self, search_id: int, trigger: TriggerKind) -> object | None:
+    def run_search(
+        self, search_id: int, trigger: TriggerKind, *, on_run_created=None
+    ) -> object | None:
         """Run one saved search through the shared orchestration boundary.
 
         A search disabled after the scheduler loaded its earlier snapshot is skipped.
@@ -35,4 +39,8 @@ class SearchTriggerService:
         search_record = self._searches.get(search_id)
         if trigger is TriggerKind.SCHEDULED and not search_record.enabled:
             return None
-        return self._orchestration.run_search(search_record, trigger)
+        if on_run_created is None:
+            return self._orchestration.run_search(search_record, trigger)
+        return self._orchestration.run_search(
+            search_record, trigger, on_run_created=on_run_created
+        )

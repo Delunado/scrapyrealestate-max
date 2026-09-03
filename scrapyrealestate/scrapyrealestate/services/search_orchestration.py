@@ -125,7 +125,11 @@ class SearchOrchestrationService:
         )
 
     def run_search(
-        self, search_record: SearchRecord, trigger: TriggerKind
+        self,
+        search_record: SearchRecord,
+        trigger: TriggerKind,
+        *,
+        on_run_created: Callable[[SearchRunRecord], None] | None = None,
     ) -> SearchRunOutcome:
         """Run every enabled portal for ``search_record`` in isolation.
 
@@ -134,13 +138,21 @@ class SearchOrchestrationService:
         process; independent searches are never blocked by this.
         """
         with self._locks.acquire(search_record.id):
-            return self._run_search_locked(search_record, trigger)
+            return self._run_search_locked(
+                search_record, trigger, on_run_created=on_run_created
+            )
 
     def _run_search_locked(
-        self, search_record: SearchRecord, trigger: TriggerKind
+        self,
+        search_record: SearchRecord,
+        trigger: TriggerKind,
+        *,
+        on_run_created: Callable[[SearchRunRecord], None] | None = None,
     ) -> SearchRunOutcome:
         run = self._runs.create_run(search_record.id, trigger)
         run = self._runs.start_run(run.id, utc_now())
+        if on_run_created is not None:
+            on_run_created(run)
 
         # A fixed portal order would mean the same portal always gets hit
         # first (or last, after every other has already delayed); shuffling
