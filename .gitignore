@@ -33,3 +33,4 @@ Thumbs.db
 
 # Secretos entorno local
 .env
+.local-data/

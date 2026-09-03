@@ -172,6 +172,13 @@ infrastructure without a concrete requirement and an explicit update to
   stale scheduled dispatch if the search was disabled, and delegates to
   `SearchOrchestrationService`, preserving its per-search overlap guard. The
   scheduler calls this service by search ID rather than invoking a separate path.
+  `services/manual_runs.py` launches web-requested manual runs on a managed worker:
+  it waits only until orchestration creates the run record, then lets the crawl
+  continue while the browser is redirected to status; it shares the same trigger
+  and overlap lock, rejects work during shutdown, and is drained before SQLite is
+  closed. `services/notification_configuration.py` validates channel configuration,
+  keeps delivery-scoped raw secrets out of route/template contexts, and records a
+  redacted outcome for each user-requested test notification.
 - `scrapyrealestate/scrapyrealestate/flask_server.py`: Flask application factory
   with per-application runtime paths and injected repository/service containers.
   The factory remains available independently of `config.json`; its legacy form
@@ -179,8 +186,16 @@ infrastructure without a concrete requirement and an explicit update to
   the module is never launched as a first-run subprocess.
   `/healthz` is process liveness; `/readyz` uses only an optional injected local
   readiness check and returns a generic response, never portal state or diagnostics.
-- `scrapyrealestate/scrapyrealestate/templates/`: current unstyled first-run form
-  and confirmation page.
+- `scrapyrealestate/scrapyrealestate/web_ui.py`: thin Phase 8 management routes and
+  server-side form parsing for the dashboard, search CRUD/portal coverage/manual
+  runs, notification channels, assignments, preferences, and test delivery. Every
+  new state-changing form validates a session CSRF token; successful mutations use
+  Post/Redirect/Get. The legacy rollback-source writer remains separately at
+  `/legacy` and `/data`.
+- `scrapyrealestate/scrapyrealestate/templates/` and `static/app.css`: shared,
+  responsive server-rendered layout, accessible form/error helpers, dashboard,
+  search and channel management, and the compact run-status landing page. Secrets
+  are never populated into edit forms.
 - `scrapyrealestate/scrapyrealestate/proxies.py`: downloads public HTTPS proxies
   for `idealista_proxy`; this source is inherently unreliable.
 - `scrapyrealestate/test_spider.sh`: opt-in live crawl helper. It retains a crawl

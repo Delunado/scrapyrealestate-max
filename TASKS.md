@@ -124,20 +124,20 @@ than code complexity.
 
 ## Phase 8 — Search and notification web UI
 
-- [ ] **Easy** — Add a simple shared Jinja layout, navigation, flash messages, accessible form styles, and reusable validation-error rendering.
-- [ ] **Medium** — Add a dashboard showing application/scheduler health, enabled searches, last and next runs, recent discoveries, and actionable degraded states.
-- [ ] **Medium** — Add the search list page with enabled state, transaction type, interval, selected portals, latest status, and safe actions.
-- [ ] **Medium** — Add search creation with name, transaction type, interval, and normalized filters, including server-side validation and Post/Redirect/Get.
-- [ ] **Medium** — Add search editing with optimistic/concurrent-update protection and preservation of unknown future configuration fields where applicable.
-- [ ] **Easy** — Add enable/disable and delete flows with CSRF protection, confirmation, and explicit behavior for retained listing history.
-- [ ] **Medium** — Add portal selection/configuration UI driven entirely by registry metadata and capability information.
-- [ ] **Medium** — Add raw URL override fields as an advanced legacy-compatible option with adapter-domain validation and clear warnings.
-- [ ] **Medium** — Show remote, local, and unsupported filter coverage before a search is saved; never imply unsupported portal filtering.
-- [ ] **Medium** — Add a manual-run action with CSRF protection, lock/conflict feedback, immediate run creation, and status-page redirect.
-- [ ] **Medium** — Add notification channel list/create/edit/enable/disable/delete pages with provider-specific validation and masked secrets.
-- [ ] **Medium** — Add per-search notification assignment and event preference forms.
-- [ ] **Medium** — Add safe “send test notification” actions that record delivery outcome and never reveal provider responses containing credentials.
-- [ ] **Easy** — Add route/form/template tests for successful CRUD, validation failures, CSRF, missing records, masked secrets, and manual-run conflicts.
+- [x] **Easy** — Add a simple shared Jinja layout, navigation, flash messages, accessible form styles, and reusable validation-error rendering.
+- [x] **Medium** — Add a dashboard showing application/scheduler health, enabled searches, last and next runs, recent discoveries, and actionable degraded states.
+- [x] **Medium** — Add the search list page with enabled state, transaction type, interval, selected portals, latest status, and safe actions.
+- [x] **Medium** — Add search creation with name, transaction type, interval, and normalized filters, including server-side validation and Post/Redirect/Get.
+- [x] **Medium** — Add search editing with optimistic/concurrent-update protection and preservation of unknown future configuration fields where applicable.
+- [x] **Easy** — Add enable/disable and delete flows with CSRF protection, confirmation, and explicit behavior for retained listing history.
+- [x] **Medium** — Add portal selection/configuration UI driven entirely by registry metadata and capability information.
+- [x] **Medium** — Add raw URL override fields as an advanced legacy-compatible option with adapter-domain validation and clear warnings.
+- [x] **Medium** — Show remote, local, and unsupported filter coverage before a search is saved; never imply unsupported portal filtering.
+- [x] **Medium** — Add a manual-run action with CSRF protection, lock/conflict feedback, immediate run creation, and status-page redirect.
+- [x] **Medium** — Add notification channel list/create/edit/enable/disable/delete pages with provider-specific validation and masked secrets.
+- [x] **Medium** — Add per-search notification assignment and event preference forms.
+- [x] **Medium** — Add safe “send test notification” actions that record delivery outcome and never reveal provider responses containing credentials.
+- [x] **Easy** — Add route/form/template tests for successful CRUD, validation failures, CSRF, missing records, masked secrets, and manual-run conflicts.
 
 ## Phase 9 — Listing history and operational status views
 

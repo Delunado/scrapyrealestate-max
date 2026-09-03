@@ -1,195 +1,140 @@
-# Scrapyrealestate
+# ScrapyRealEstate
 
-Rastrea varios portales inmobiliarios y avisa por Telegram de las viviendas
-nuevas que cumplen tus criterios.
+ScrapyRealEstate monitors saved searches on Spanish property portals, stores
+normalized listing history in SQLite, and delivers provider-neutral change events
+through Telegram, ntfy, or HTTP webhooks. One persistent process serves the web UI,
+runs the in-process scheduler, launches isolated Scrapy jobs, and retains run and
+delivery status.
 
-Corre en bucle: cada X segundos lanza los spiders, compara con lo ya visto y, si
-aparece una vivienda nueva dentro de tu rango de precio, la publica en tu canal.
+Supported adapters currently cover Pisos.com, Habitaclia, Fotocasa, Yaencontre,
+and Idealista. Idealista is marked degraded because DataDome commonly blocks
+headless automation; the optional public-proxy variant is not a supported anti-bot
+guarantee.
 
-Es una versión refactorizada del proyecto original. Lo más importante que cambia:
-ya no usa MongoDB (la deduplicación es local, no se manda nada fuera), todo se
-configura en la web (incluido el token de Telegram), las dependencias están
-fijadas y los spiders de Fotocasa y Yaencontre se han reescrito.
+## Test the web UI locally from this checkout
 
-## Cómo funciona
+Python 3.12 is the supported version. From the repository root in PowerShell:
 
-Rastrea Idealista, Pisos.com, Fotocasa, Habitaclia y Yaencontre. Para saber qué es
-nuevo guarda en `data/ids.json` los `id` ya avisados y compara contra ahí; lo que
-entra en el rango de precio se manda al canal de Telegram. No hay base de datos ni
-telemetría.
-
-## Requisitos
-
-- Docker (lo más cómodo), o Python 3.9+ con `requirements.txt`.
-- Un canal de Telegram con el bot añadido como administrador (ver abajo).
-
-## Docker
-
-Imagen publicada en Docker Hub: `mcrespov/scrapyrealestate`.
-
-Ejecutar (Docker descarga la imagen sola la primera vez):
-
-```bash
-docker run -d \
-  --name scrapyrealestate \
-  --restart=always \
-  -p 8080:8080 \
-  mcrespov/scrapyrealestate:latest
-```
-
-El `-p 8080:8080` expone la web de configuración del primer arranque. Los datos
-(`config.json`, `ids.json`, `useragent.txt`) son efímeros: viven dentro del
-contenedor. Un `docker restart` los conserva, pero si borras o recreas el
-contenedor se pierden y tendrás que volver a configurarlo por la web (y el
-histórico de avisos empieza de cero). Para una segunda instancia cambia nombre y
-puerto (`-p 8081:8080`).
-
-La imagen arranca bajo `tini` como PID 1, que recolecta los procesos zombie
-(`defunct`) que deja Chromium; sin él se acumulan tras muchos ciclos y agotan los
-PID del sistema. Si usas una imagen antigua (sin `tini`), añade `--init` al
-`docker run` para lograr el mismo efecto.
-
-Logs:
-
-```bash
-docker logs -f scrapyrealestate
-```
-
-## Con docker-compose
-
-El repositorio incluye un `docker-compose.yml` que usa la imagen publicada. Para
-levantarlo y pararlo:
-
-```bash
-docker compose up -d
-docker compose down
-```
-
-## Construir desde el código (opcional)
-
-Si en vez de usar la imagen publicada prefieres construirla tú mismo:
-
-```bash
-docker build -t scrapyrealestate .
-```
-
-Ejecutar:
-
-```bash
-docker run -d --name scrapyrealestate --restart=always -p 8080:8080 scrapyrealestate
-```
-
-## Sin Docker
-
-Con Python 3.9+ (mejor en un [entorno virtual](https://docs.python.org/es/3/tutorial/venv.html)):
-
-```bash
-pip3 install -r scrapyrealestate/requirements.txt
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r scrapyrealestate\requirements.txt
 playwright install chromium
-
-cd scrapyrealestate
-python3 main.py
+New-Item -ItemType Directory -Force .local-data
+$env:SCRAPYREALESTATE_DATA_DIR = (Resolve-Path .local-data).Path
+Set-Location scrapyrealestate
+python main.py
 ```
 
-En segundo plano en Linux: `nohup python3 main.py &` (logs en `nohup.out`).
+If the virtual environment and dependencies already exist, start at the
+`Activate.ps1` line. Open <http://localhost:8080/> after Waitress starts. Stop the
+application with `Ctrl+C`.
 
-## Configuración
+The absolute `SCRAPYREALESTATE_DATA_DIR` keeps the test database at
+`.local-data/scrapyrealestate.sqlite3`, independently of the process working directory.
+Delete that test directory only when you intentionally want a clean local database.
+Without the environment variable, the compatibility location is
+`scrapyrealestate/data/` when launched as shown above.
 
-La primera vez, si no hay `data/config.json`, el programa abre una web de
-configuración en `http://localhost:8080/`. Rellénala y guarda: se crea
-`data/config.json` y el programa sigue solo. Mientras ese fichero exista no se
-vuelve a pedir nada (puedes editarlo a mano).
+The UI supports:
 
-Por compatibilidad, el directorio de datos es `./data` respecto al directorio de
-ejecución. Se puede elegir otro directorio persistente mediante
-`SCRAPYREALESTATE_DATA_DIR`; su valor debe ser una ruta absoluta. Todos los
-ficheros de ejecución se resolverán bajo ese directorio.
+- dashboard and scheduler/search status;
+- saved-search creation, editing, enabling, deletion, and manual execution;
+- normalized filters, per-portal selection, capability coverage, and advanced raw
+  URL validation;
+- Telegram, ntfy, and webhook channel management with masked secrets;
+- per-search channel assignments and event preferences;
+- safe test notifications with persisted, redacted outcomes.
 
-Las URLs de los portales vienen precumplimentadas con búsquedas de Madrid;
-cámbialas por las tuyas antes de guardar.
+Use a real reachable portal URL only when you intentionally run a crawl. The
+ordinary test suite is offline and does not contact portals.
 
-Parámetros:
+## Offline development checks
 
-- `scrapy_rs_name`: nombre de la instancia.
-- `log_level`: nivel de log del script (por defecto `INFO`).
-- `log_level_scrapy`: nivel de log de Scrapy (por defecto `WARNING`).
-- `time_update`: segundos entre búsquedas (mínimo 300).
-- `telegram_chatuserID`: el chat id de tu canal (ver abajo).
-- `telegram_bot_token`: token de tu bot de @BotFather. También se puede definir
-  mediante la variable de entorno `TELEGRAM_BOT_TOKEN`, que tiene prioridad.
-- `start_msg`: si es `True`, manda un mensaje al arrancar.
-- `min_price` / `max_price`: rango de precio (`max_price = 0` es sin límite).
-- `url_idealista` / `url_pisoscom` / `url_fotocasa` / `url_habitaclia` /
-  `url_yaencontre`: URLs de búsqueda de cada portal (admite varias).
-- `proxy_idealista`: proxies rotatorios para Idealista (`on`); por defecto off.
-- `send_first`: si se activa, avisa también de lo que ya hay en el primer ciclo.
+From the repository root with the virtual environment active:
 
-Debes proporcionar tu propio `telegram_bot_token` en la configuración o mediante
-`TELEGRAM_BOT_TOKEN`; no existe una credencial compartida de reserva.
+```powershell
+python -m compileall -q scrapyrealestate
+python -m pytest
+python -m ruff check .
+```
 
-### Canal de Telegram y chat id
+Optional checks:
 
-1. Crea un canal (público o privado).
-2. Añade tu bot como administrador con permiso para publicar (créalo con
-   [@BotFather](https://t.me/BotFather) y pon su token en el campo
-   `telegram_bot_token` de la web). Si el bot no está bien añadido, el programa
-   no arranca.
-3. Saca el chat id del canal, por ejemplo con [@RawDataBot](https://t.me/RawDataBot).
-   Es lo que va en `telegram_chatuserID` (tipo `-1001647968000`).
+```powershell
+Set-Location scrapyrealestate
+scrapy list
+Set-Location ..
+docker compose config --quiet
+```
 
-## Estado de los portales
-
-| Portal     | Estado    | Notas |
-|------------|-----------|-------|
-| Pisos.com  | Funciona  | HTML estable. |
-| Habitaclia | Funciona  | HTML estable. |
-| Yaencontre | Funciona  | Se carga con Playwright (devuelve 403 a peticiones planas). |
-| Fotocasa   | Funciona  | Playwright + Chromium; el spider lee el JSON embebido de la página, no las clases CSS. |
-| Idealista  | No fiable | DataDome bloquea el navegador automatizado en headless. Se probó Chromium, stealth, headful con Xvfb y Playwright parcheado (rebrowser) sin éxito; usarlo de verdad pediría un servicio anti-bot de pago. |
-
-Rastrea con cabeza y respeta el refresco mínimo (300s).
-
-## Probar un spider
-
-`test_spider.sh` lanza un crawl de un portal y separa un resultado no vacío, un
-resultado vacío válido, un fallo del parser, un fallo de transporte y un probable
-bloqueo. Conserva el JSON y el log bajo `./data/`; es una herramienta manual que no
-forma parte de los tests offline. Se ejecuta donde está `scrapy.cfg`. En Docker:
+Live spider checks are opt-in and must run from the inner `scrapyrealestate/`
+directory, where `scrapy.cfg` lives:
 
 ```bash
-docker exec -it scrapyrealestate bash -c \
-  "cd /scrapyrealestate/scrapyrealestate && ./test_spider.sh fotocasa"
+./test_spider.sh pisoscom
+./test_spider.sh fotocasa 'https://www.fotocasa.es/...'
 ```
 
-Spiders: `idealista`, `pisoscom`, `habitaclia`, `fotocasa`, `yaencontre`. Puedes
-pasar tu URL como segundo argumento.
+## Docker status
 
-## Estructura
+The current `docker-compose.yml` still uses the published Docker Hub image and does
+not mount persistent data. It therefore does **not** build or test uncommitted Phase
+8 changes from this checkout. For a one-off container test of this source tree:
 
-```
-Dockerfile
-docker-compose.yml
-README.md
-scrapyrealestate/
-├── main.py                  # bucle, Telegram y deduplicación local
-├── requirements.txt
-├── scrapy.cfg
-├── test_spider.sh
-└── scrapyrealestate/
-    ├── settings.py          # Scrapy + Playwright (Chromium)
-    ├── items.py
-    ├── flask_server.py      # web de configuración del primer arranque
-    ├── proxies.py
-    ├── templates/
-    └── spiders/             # idealista, pisoscom, fotocasa, habitaclia, yaencontre
+```powershell
+docker build -t scrapyrealestate-local .
+docker run --rm --init -p 8080:8080 scrapyrealestate-local
 ```
 
-`data/` (ignorada por git) guarda `config.json`, `ids.json` y `useragent.txt`.
+Data in that one-off container is ephemeral. Persistent Compose volumes,
+healthchecks, configurable host ports, least-privileged image execution, and the
+complete backup/update procedure are intentionally tracked in Phase 10 of
+`TASKS.md`.
 
-## Créditos y licencia
+## Runtime and data
 
-Basado en [mferark/scrapyrealestate](https://github.com/mferark/scrapyrealestate). Licencia GPL.
+`python main.py` delegates to the persistent bootstrap. Startup creates the data
+directory, applies ordered SQLite migrations, idempotently imports preserved
+legacy `config.json` and `ids.json` files when present, then starts Waitress and the
+scheduler. `SIGINT`/`SIGTERM` stop new dispatches, allow bounded crawler cleanup,
+and close the database.
 
-## Colaborar
+The data directory can contain:
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/mcrespov)
+- `scrapyrealestate.sqlite3`: saved searches, listings, prices, runs, events, channels,
+  delivery attempts, schedules, and migration state;
+- `config.json` and `ids.json`: preserved legacy import sources;
+- `useragent.txt`: Scrapy User-Agent input;
+- `runs/`: unique JSON Lines output for isolated portal attempts.
+
+### Configuración y deduplicación
+
+La configuración autoritativa se guarda en SQLite. La deduplicación utiliza la
+identidad externa o URL canónica dentro de cada portal, y conserva por separado las
+coincidencias de cada búsqueda. Los JSON heredados solo son fuentes de importación
+compatibles y no vuelven a ser el estado principal de la aplicación.
+
+Notification credentials are user supplied. There is no shared Telegram token.
+Ordinary channel reads and templates receive masked values; raw credentials are
+available only to delivery-scoped services.
+
+## Portal status
+
+| Portal | Transport | Notes |
+| --- | --- | --- |
+| Pisos.com | Scrapy HTTP | Simplest maintained HTML target. |
+| Habitaclia | Scrapy HTTP | Uses the stable detail-URL identifier where available. |
+| Fotocasa | Playwright | Parses embedded initial JSON; site structure may change. |
+| Yaencontre | Playwright | Rendered requests are needed because plain requests can return 403. |
+| Idealista | Playwright | Degraded; DataDome commonly blocks headless automation. |
+| Idealista proxy | Rotating public proxies | Degraded and inherently unreliable. |
+
+Use respectful intervals (the persisted minimum is five minutes), review each
+portal's terms, and do not treat live portal access as a deterministic regression
+test.
+
+## Credits and license
+
+Based on [mferark/scrapyrealestate](https://github.com/mferark/scrapyrealestate).
+Licensed under GPL-3.0.
