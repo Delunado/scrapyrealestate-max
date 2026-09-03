@@ -274,6 +274,60 @@ def test_recent_listings_page_filters_and_rejects_invalid_queries(web_app):
     assert app.test_client().get("/listings/999").status_code == 404
 
 
+def test_dedicated_listing_views_lock_their_event_or_state_filter(web_app):
+    app, connection, _trigger, _changes = web_app
+    search_id = connection.execute(
+        "INSERT INTO searches (name, transaction_type) VALUES ('Vistas', 'buy') RETURNING id"
+    ).fetchone()[0]
+    connection.execute(
+        "INSERT INTO search_schedules (search_id, interval_seconds) VALUES (?, 900)",
+        (search_id,),
+    )
+    new_id = connection.execute(
+        """
+        INSERT INTO listings (
+            portal_key, external_id, transaction_type, title, first_seen_at, last_seen_at
+        ) VALUES ('pisoscom', 'new-view', 'buy', 'Anuncio nuevo',
+                  '2026-09-03T10:00:00Z', '2026-09-03T12:00:00Z') RETURNING id
+        """
+    ).fetchone()[0]
+    inactive_id = connection.execute(
+        """
+        INSERT INTO listings (
+            portal_key, external_id, transaction_type, title, first_seen_at,
+            last_seen_at, active
+        ) VALUES ('fotocasa', 'inactive-view', 'buy', 'Anuncio retirado',
+                  '2026-09-03T09:00:00Z', '2026-09-03T11:00:00Z', 0) RETURNING id
+        """
+    ).fetchone()[0]
+    connection.executemany(
+        """
+        INSERT INTO notification_events (
+            search_id, listing_id, event_type, deduplication_key, occurred_at
+        ) VALUES (?, ?, ?, ?, '2026-09-03T12:00:00Z')
+        """,
+        (
+            (search_id, new_id, "new_listing", "new:view"),
+            (search_id, inactive_id, "price_drop", "drop:view"),
+            (search_id, new_id, "reappearance", "reappearance:view"),
+        ),
+    )
+
+    client = app.test_client()
+    assert "Anuncio nuevo" in client.get(
+        "/listings/new?event_type=price_drop"
+    ).get_data(as_text=True)
+    assert "Anuncio retirado" in client.get(
+        "/listings/price-drops"
+    ).get_data(as_text=True)
+    assert "Anuncio nuevo" in client.get(
+        "/listings/reappearances"
+    ).get_data(as_text=True)
+    inactive_page = client.get("/listings/inactive").get_data(as_text=True)
+    assert "Anuncio retirado" in inactive_page
+    assert "Anuncio nuevo" not in inactive_page
+
+
 def test_channel_crud_masks_secrets_and_records_safe_test(web_app):
     app, connection, _trigger, _changes = web_app
     client = app.test_client()

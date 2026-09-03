@@ -124,18 +124,58 @@ def search_list():
 
 @ui.get("/listings")
 def listing_list():
+    return _render_listing_list()
+
+
+@ui.get("/listings/new")
+def new_listings():
+    return _render_listing_list(
+        title="Anuncios nuevos",
+        event_type=NotificationEventType.NEW_LISTING,
+    )
+
+
+@ui.get("/listings/price-drops")
+def price_drop_listings():
+    return _render_listing_list(
+        title="Bajadas de precio",
+        event_type=NotificationEventType.PRICE_DROP,
+    )
+
+
+@ui.get("/listings/reappearances")
+def reappeared_listings():
+    return _render_listing_list(
+        title="Reapariciones",
+        event_type=NotificationEventType.REAPPEARANCE,
+    )
+
+
+@ui.get("/listings/inactive")
+def inactive_listings():
+    return _render_listing_list(title="Anuncios inactivos", active=False)
+
+
+def _render_listing_list(
+    *,
+    title: str = "Anuncios recientes",
+    event_type: NotificationEventType | None = None,
+    active: bool | None = None,
+):
     try:
         page = _query_integer("page", default=1)
         search_id = _query_integer("search_id")
         portal = _query_enum("portal", PortalKey)
-        event_type = _query_enum("event_type", NotificationEventType)
-        active = _query_active()
+        selected_event_type = event_type or _query_enum(
+            "event_type", NotificationEventType
+        )
+        selected_active = active if active is not None else _query_active()
         listings = _listings().recent(
             page=page,
             search_id=search_id,
             portal=portal,
-            event_type=event_type,
-            active=active,
+            event_type=selected_event_type,
+            active=selected_active,
         )
     except (TypeError, ValueError):
         abort(400)
@@ -145,11 +185,15 @@ def listing_list():
         searches=_searches().list(),
         portals=tuple(PortalKey),
         event_types=tuple(NotificationEventType),
+        title=title,
+        pagination_endpoint=request.endpoint,
+        locked_event_type=event_type,
+        locked_active=active,
         selected={
             "search_id": search_id,
             "portal": portal,
-            "event_type": event_type,
-            "active": active,
+            "event_type": selected_event_type,
+            "active": selected_active,
         },
     )
 

@@ -1,9 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Anuncios · ScrapyRealEstate{% endblock %}
+{% block title %}{{ title }} · ScrapyRealEstate{% endblock %}
 {% block content %}
 <div class="page-heading">
-  <div><h1>Anuncios recientes</h1><p>{{ listings.total }} anuncios encontrados.</p></div>
+  <div><h1>{{ title }}</h1><p>{{ listings.total }} anuncios encontrados.</p></div>
 </div>
+<nav class="view-switcher" aria-label="Vistas de anuncios"><a href="{{ url_for('ui.listing_list') }}">Recientes</a><a href="{{ url_for('ui.new_listings') }}">Nuevos</a><a href="{{ url_for('ui.price_drop_listings') }}">Bajadas de precio</a><a href="{{ url_for('ui.reappeared_listings') }}">Reapariciones</a><a href="{{ url_for('ui.inactive_listings') }}">Inactivos</a></nav>
 <form class="filter-form" method="get">
   <label>Búsqueda
     <select name="search_id"><option value="">Todas</option>{% for search in searches %}<option value="{{ search.id }}"{% if selected.search_id == search.id %} selected{% endif %}>{{ search.search.name }}</option>{% endfor %}</select>
@@ -12,10 +13,10 @@
     <select name="portal"><option value="">Todos</option>{% for portal in portals %}<option value="{{ portal.value }}"{% if selected.portal == portal %} selected{% endif %}>{{ portal.value }}</option>{% endfor %}</select>
   </label>
   <label>Evento
-    <select name="event_type"><option value="">Todos</option>{% for event_type in event_types %}<option value="{{ event_type.value }}"{% if selected.event_type == event_type %} selected{% endif %}>{{ event_type.value }}</option>{% endfor %}</select>
+    {% if locked_event_type %}<input type="hidden" name="event_type" value="{{ locked_event_type.value }}"><input value="{{ locked_event_type.value }}" disabled>{% else %}<select name="event_type"><option value="">Todos</option>{% for event_type in event_types %}<option value="{{ event_type.value }}"{% if selected.event_type == event_type %} selected{% endif %}>{{ event_type.value }}</option>{% endfor %}</select>{% endif %}
   </label>
   <label>Estado
-    <select name="active"><option value="">Todos</option><option value="active"{% if selected.active is sameas true %} selected{% endif %}>Activos</option><option value="inactive"{% if selected.active is sameas false %} selected{% endif %}>Inactivos</option></select>
+    {% if locked_active is sameas false %}<input type="hidden" name="active" value="inactive"><input value="Inactivos" disabled>{% else %}<select name="active"><option value="">Todos</option><option value="active"{% if selected.active is sameas true %} selected{% endif %}>Activos</option><option value="inactive"{% if selected.active is sameas false %} selected{% endif %}>Inactivos</option></select>{% endif %}
   </label>
   <button type="submit">Filtrar</button>
 </form>
@@ -40,9 +41,9 @@
   {% endfor %}
 </div>
 <nav class="pagination" aria-label="Paginación">
-  {% if listings.has_previous %}<a href="{{ url_for('ui.listing_list', page=listings.page - 1, search_id=selected.search_id or '', portal=selected.portal.value if selected.portal else '', event_type=selected.event_type.value if selected.event_type else '', active='active' if selected.active is sameas true else 'inactive' if selected.active is sameas false else '') }}">Anterior</a>{% endif %}
+  {% if listings.has_previous %}<a href="{{ url_for(pagination_endpoint, page=listings.page - 1, search_id=selected.search_id or '', portal=selected.portal.value if selected.portal else '', event_type=selected.event_type.value if selected.event_type else '', active='active' if selected.active is sameas true else 'inactive' if selected.active is sameas false else '') }}">Anterior</a>{% endif %}
   <span>Página {{ listings.page }} de {{ listings.pages }}</span>
-  {% if listings.has_next %}<a href="{{ url_for('ui.listing_list', page=listings.page + 1, search_id=selected.search_id or '', portal=selected.portal.value if selected.portal else '', event_type=selected.event_type.value if selected.event_type else '', active='active' if selected.active is sameas true else 'inactive' if selected.active is sameas false else '') }}">Siguiente</a>{% endif %}
+  {% if listings.has_next %}<a href="{{ url_for(pagination_endpoint, page=listings.page + 1, search_id=selected.search_id or '', portal=selected.portal.value if selected.portal else '', event_type=selected.event_type.value if selected.event_type else '', active='active' if selected.active is sameas true else 'inactive' if selected.active is sameas false else '') }}">Siguiente</a>{% endif %}
 </nav>
 {% else %}<div class="empty">No hay anuncios que coincidan con estos filtros.</div>{% endif %}
 {% endblock %}
