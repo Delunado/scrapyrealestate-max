@@ -116,6 +116,9 @@ def create_app(
     app.jinja_env.globals["csrf_token"] = csrf_token
     app.jinja_env.filters["duration"] = _format_duration
     app.jinja_env.filters["interval"] = _format_interval
+    app.jinja_env.filters["euros"] = _format_euros
+    app.jinja_env.filters["area"] = _format_area
+    app.jinja_env.filters["price_per_sqm"] = _format_price_per_sqm
 
     @app.teardown_request
     def close_request_database(_error):
@@ -187,3 +190,21 @@ def _format_interval(value: int) -> str:
         hours = value // 3600
         return f"{hours} h"
     return f"{value // 60} min"
+
+
+def _format_euros(value: int | None) -> str:
+    if value is None:
+        return "—"
+    return f"{value:,}".replace(",", ".") + " €"
+
+
+def _format_area(value: float | None) -> str:
+    if value is None:
+        return "—"
+    return f"{value:g} m²"
+
+
+def _format_price_per_sqm(value: float | None) -> str:
+    if value is None:
+        return "—"
+    return f"{round(value):,}".replace(",", ".") + " €/m²"

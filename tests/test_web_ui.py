@@ -222,9 +222,11 @@ def test_recent_listings_page_filters_and_rejects_invalid_queries(web_app):
     listing_id = connection.execute(
         """
         INSERT INTO listings (
-            portal_key, external_id, transaction_type, title,
+            portal_key, external_id, canonical_url, transaction_type, title,
+            price_euros, area_sqm, rooms,
             first_seen_at, last_seen_at
-        ) VALUES ('pisoscom', 'recent-1', 'rent', 'Piso reciente',
+        ) VALUES ('pisoscom', 'recent-1', 'https://www.pisos.com/alquiler/piso-1/',
+                  'rent', 'Piso reciente', 180000, 90, 3,
                   '2026-09-03T10:00:00Z', '2026-09-03T11:00:00Z') RETURNING id
         """
     ).fetchone()[0]
@@ -233,7 +235,11 @@ def test_recent_listings_page_filters_and_rejects_invalid_queries(web_app):
     response = app.test_client().get("/listings?portal=pisoscom&active=active")
 
     assert response.status_code == 200
-    assert "Piso reciente" in response.get_data(as_text=True)
+    page = response.get_data(as_text=True)
+    assert "Piso reciente" in page
+    assert "180.000 €" in page
+    assert "2.000 €/m²" in page
+    assert 'rel="noopener noreferrer"' in page
     assert app.test_client().get("/listings?page=0").status_code == 400
 
 

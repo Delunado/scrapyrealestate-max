@@ -21,7 +21,23 @@
 </form>
 {% if listings.items %}
 <div class="listing-list">
-  {% for listing in listings.items %}<article class="card"><h2>{{ listing.title }}</h2><p>{{ listing.portal.value }} · {{ listing.last_seen_at }}</p></article>{% endfor %}
+  {% for listing in listings.items %}
+  <article class="card listing-card">
+    <div class="listing-card-heading">
+      <div><span class="eyebrow">{{ listing.portal.value }}</span><h2>{{ listing.title }}</h2></div>
+      <span class="badge {{ 'badge-on' if listing.active else 'badge-warning' }}">{{ 'Activo' if listing.active else 'Inactivo' }}</span>
+    </div>
+    <dl class="listing-facts">
+      <div><dt>Precio</dt><dd>{{ listing.price_euros|euros }}</dd></div>
+      <div><dt>Superficie</dt><dd>{{ listing.area_sqm|area }}</dd></div>
+      <div><dt>Precio/m²</dt><dd>{{ listing.price_per_sqm|price_per_sqm }}</dd></div>
+      <div><dt>Habitaciones</dt><dd>{{ listing.rooms if listing.rooms is not none else '—' }}</dd></div>
+      <div><dt>Primera vez</dt><dd>{{ listing.first_seen_at }}</dd></div>
+      <div><dt>Última vez</dt><dd>{{ listing.last_seen_at }}</dd></div>
+    </dl>
+    {% if listing.external_url %}<a href="{{ listing.external_url }}" target="_blank" rel="noopener noreferrer">Abrir en {{ listing.portal.value }}</a>{% endif %}
+  </article>
+  {% endfor %}
 </div>
 <nav class="pagination" aria-label="Paginación">
   {% if listings.has_previous %}<a href="{{ url_for('ui.listing_list', page=listings.page - 1, search_id=selected.search_id or '', portal=selected.portal.value if selected.portal else '', event_type=selected.event_type.value if selected.event_type else '', active='active' if selected.active is sameas true else 'inactive' if selected.active is sameas false else '') }}">Anterior</a>{% endif %}

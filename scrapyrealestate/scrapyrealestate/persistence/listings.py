@@ -8,6 +8,7 @@ import sqlite3
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
+from urllib.parse import urlsplit
 
 from scrapyrealestate.domain.listing import NormalizedListing
 from scrapyrealestate.domain.notification import NotificationEventType
@@ -52,6 +53,30 @@ class ListingSummaryRecord:
     active: bool
     first_seen_at: str
     last_seen_at: str
+
+    @property
+    def price_per_sqm(self) -> float | None:
+        if self.price_euros is None or self.area_sqm is None:
+            return None
+        return self.price_euros / self.area_sqm
+
+    @property
+    def external_url(self) -> str | None:
+        if self.canonical_url is None:
+            return None
+        try:
+            parsed = urlsplit(self.canonical_url)
+            _ = parsed.port
+        except ValueError:
+            return None
+        if (
+            parsed.scheme.lower() not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+        ):
+            return None
+        return self.canonical_url
 
 
 @dataclass(frozen=True, slots=True)

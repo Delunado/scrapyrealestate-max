@@ -8,6 +8,11 @@
 .listing-list { display: grid; gap: .8rem; }
 .listing-list h2 { font-size: 1.1rem; margin: .1rem 0; }
 .listing-list p { color: var(--muted); margin: .35rem 0; }
+.listing-card-heading { align-items: start; display: flex; gap: 1rem; justify-content: space-between; }
+.listing-facts { display: grid; gap: .6rem; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+.listing-facts div { min-width: 0; }
+.listing-facts dt { color: var(--muted); font-size: .8rem; }
+.listing-facts dd { font-weight: 650; margin: 0; }
 .pagination {
   align-items: center;
   display: flex;

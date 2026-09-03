@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -51,6 +52,27 @@ def test_recent_listings_are_paginated_and_ordered(listing_queries):
     assert first_page.has_next is True
     assert [item.title for item in first_page.items] == ["Primero"]
     assert [item.title for item in second_page.items] == ["Segundo"]
+
+
+def test_listing_summary_calculates_price_density_and_guards_external_links(
+    listing_queries,
+):
+    repository, _first_search, _second_search = listing_queries
+    row = repository.connection.execute(
+        """
+        UPDATE listings
+        SET price_euros = 225000, area_sqm = 90,
+            canonical_url = 'https://www.pisos.com/comprar/piso-1/'
+        WHERE external_id = '1'
+        """
+    )
+    assert row.rowcount == 1
+
+    summary = repository.recent().items[0]
+
+    assert summary.price_per_sqm == 2500
+    assert summary.external_url == "https://www.pisos.com/comprar/piso-1/"
+    assert replace(summary, canonical_url="javascript:alert(1)").external_url is None
 
 
 def test_recent_listings_combine_search_portal_event_and_state_filters(listing_queries):
