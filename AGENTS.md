@@ -5,8 +5,7 @@
 ScrapyRealEstate monitors Spanish property portals, periodically scrapes configured
 search-result URLs, and notifies a Telegram channel about newly seen listings. The
 current `master` branch now runs the persistent SQLite-backed application and
-scheduler; the server-rendered management UI and operational views remain later
-phases in `TASKS.md`.
+scheduler, plus the server-rendered management and operational history UI.
 
 Preserve working spiders while evolving the system incrementally. Prefer the
 standard library, Flask/Jinja, Scrapy, Playwright only where necessary, and SQLite.
@@ -190,7 +189,7 @@ infrastructure without a concrete requirement and an explicit update to
   the module is never launched as a first-run subprocess.
   `/healthz` is process liveness; `/readyz` uses only an optional injected local
   readiness check and returns a generic response, never portal state or diagnostics.
-- `scrapyrealestate/scrapyrealestate/web_ui.py`: thin Phase 8 management routes and
+- `scrapyrealestate/scrapyrealestate/web_ui.py`: thin Phase 8/9 management routes and
   server-side form parsing for the dashboard, search CRUD/portal coverage/manual
   runs, notification channels, assignments, preferences, and test delivery. Every
   new state-changing form validates a session CSRF token; successful mutations use
@@ -198,8 +197,8 @@ infrastructure without a concrete requirement and an explicit update to
   `/legacy` and `/data`.
 - `scrapyrealestate/scrapyrealestate/templates/` and `static/app.css`: shared,
   responsive server-rendered layout, accessible form/error helpers, dashboard,
-  search and channel management, and the compact run-status landing page. Secrets
-  are never populated into edit forms.
+  search/channel management, listing history/detail, run status, and portal-health
+  views. Secrets are never populated into edit forms.
 - `scrapyrealestate/scrapyrealestate/proxies.py`: downloads public HTTPS proxies
   for `idealista_proxy`; this source is inherently unreliable.
 - `scrapyrealestate/test_spider.sh`: opt-in live crawl helper. It retains a crawl

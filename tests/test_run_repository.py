@@ -139,3 +139,25 @@ def test_portal_health_validates_sample_bound(repository):
 
     with pytest.raises(ValueError):
         runs.portal_health(attempts_per_portal=101)
+
+
+def test_portal_health_uses_only_the_bounded_newest_sample(repository):
+    runs, search_id = repository
+    run = runs.start_run(
+        runs.create_run(search_id, TriggerKind.MANUAL).id, _time()
+    )
+    for number, status in enumerate(
+        (RunStatus.SUCCESS, RunStatus.EMPTY, RunStatus.BLOCKED), start=1
+    ):
+        attempt = runs.start_attempt(
+            run.id, PortalKey.FOTOCASA, _time(number), attempt_number=number
+        )
+        runs.finish_attempt(attempt.id, status, _time(number + 1))
+
+    health = runs.portal_health(attempts_per_portal=2)[0]
+
+    assert health.sample_size == 2
+    assert health.latest_status == RunStatus.BLOCKED.value
+    assert health.success_count == 0
+    assert health.empty_count == 1
+    assert health.blocked_count == 1

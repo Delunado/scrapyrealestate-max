@@ -62,6 +62,17 @@ def test_retention_prunes_only_verbose_and_terminal_operational_history(
                 connection, event_id, channel_id, number, "succeeded", completed_at
             )
         _insert_delivery(connection, event_id, channel_id, 5, "pending", None)
+        connection.execute(
+            """
+            INSERT INTO notification_delivery_attempts (
+                event_id, channel_id, attempt_number, status, claimed_at,
+                available_at, claim_token, lease_expires_at
+            ) VALUES (?, ?, 6, 'claimed', '2026-05-01T10:00:00Z',
+                      '2026-05-01T10:00:00Z', 'active-lease',
+                      '2026-10-01T10:00:00Z')
+            """,
+            (event_id, channel_id),
+        )
 
         outcome = OperationalRetentionService(
             connection,
@@ -88,10 +99,14 @@ def test_retention_prunes_only_verbose_and_terminal_operational_history(
             "succeeded",
             "succeeded",
             "pending",
+            "claimed",
         ]
         assert connection.execute("SELECT count(*) FROM listings").fetchone()[0] == 1
         assert connection.execute(
             "SELECT count(*) FROM listing_price_history"
+        ).fetchone()[0] == 1
+        assert connection.execute(
+            "SELECT count(*) FROM notification_events"
         ).fetchone()[0] == 1
 
 

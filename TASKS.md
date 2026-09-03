@@ -148,7 +148,7 @@ than code complexity.
 - [x] **Medium** — Add a search-run detail page with per-portal duration, returned/matched/new counts, status category, and redacted error summary.
 - [x] **Medium** — Add portal health summaries based on recent attempts while distinguishing unavailable, blocked, parser failure, and empty success.
 - [x] **Easy** — Add bounded retention/pruning for verbose run diagnostics and delivery attempts while retaining listing and price history.
-- [ ] **Medium** — Add repository/query and web tests for pagination, filters, ordering, price history, status summaries, and retention.
+- [x] **Medium** — Add repository/query and web tests for pagination, filters, ordering, price history, status summaries, and retention.
 
 ## Phase 10 — Docker persistence and self-hosted deployment
 

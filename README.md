@@ -45,6 +45,8 @@ The UI supports:
 - Telegram, ntfy, and webhook channel management with masked secrets;
 - per-search channel assignments and event preferences;
 - safe test notifications with persisted, redacted outcomes.
+- paginated listing history, event/inactive views, listing and price details;
+- per-run diagnostics and bounded recent portal-health summaries.
 
 Use a real reachable portal URL only when you intentionally run a crawl. The
 ordinary test suite is offline and does not contact portals.

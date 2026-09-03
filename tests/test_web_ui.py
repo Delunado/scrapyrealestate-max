@@ -397,6 +397,63 @@ def test_dedicated_listing_views_lock_their_event_or_state_filter(web_app):
     assert "Anuncio nuevo" not in inactive_page
 
 
+def test_listing_web_pagination_preserves_combined_filters_and_order(web_app):
+    app, connection, _trigger, _changes = web_app
+    search_id = connection.execute(
+        "INSERT INTO searches (name, transaction_type) VALUES ('Paginada', 'buy') RETURNING id"
+    ).fetchone()[0]
+    connection.execute(
+        "INSERT INTO search_schedules (search_id, interval_seconds) VALUES (?, 900)",
+        (search_id,),
+    )
+    for number in range(26):
+        timestamp = f"2026-09-03T10:00:{number:02d}Z"
+        listing_id = connection.execute(
+            """
+            INSERT INTO listings (
+                portal_key, external_id, transaction_type, title,
+                first_seen_at, last_seen_at
+            ) VALUES ('pisoscom', ?, 'buy', ?, ?, ?) RETURNING id
+            """,
+            (f"page-{number}", f"Paginado {number:02d}", timestamp, timestamp),
+        ).fetchone()[0]
+        connection.execute(
+            """
+            INSERT INTO search_listing_matches (
+                search_id, listing_id, first_seen_at, last_seen_at
+            ) VALUES (?, ?, ?, ?)
+            """,
+            (search_id, listing_id, timestamp, timestamp),
+        )
+        connection.execute(
+            """
+            INSERT INTO notification_events (
+                search_id, listing_id, event_type, deduplication_key, occurred_at
+            ) VALUES (?, ?, 'new_listing', ?, ?)
+            """,
+            (search_id, listing_id, f"page:event:{number}", timestamp),
+        )
+
+    query = (
+        f"search_id={search_id}&portal=pisoscom&event_type=new_listing&active=active"
+    )
+    first_page = app.test_client().get(f"/listings?{query}").get_data(as_text=True)
+
+    assert "Página 1 de 2" in first_page
+    assert "Paginado 25" in first_page
+    assert "Paginado 00" not in first_page
+    assert f"search_id={search_id}" in first_page
+    assert "portal=pisoscom" in first_page
+    assert "event_type=new_listing" in first_page
+    assert "active=active" in first_page
+
+    second_page = app.test_client().get(
+        f"/listings?page=2&{query}"
+    ).get_data(as_text=True)
+    assert "Paginado 00" in second_page
+    assert "Paginado 01" not in second_page
+
+
 def test_channel_crud_masks_secrets_and_records_safe_test(web_app):
     app, connection, _trigger, _changes = web_app
     client = app.test_client()

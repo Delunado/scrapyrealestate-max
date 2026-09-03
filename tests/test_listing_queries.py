@@ -74,6 +74,11 @@ def test_listing_summary_calculates_price_density_and_guards_external_links(
     assert summary.external_url == "https://www.pisos.com/comprar/piso-1/"
     assert replace(summary, canonical_url="javascript:alert(1)").external_url is None
 
+    repository.connection.execute(
+        "UPDATE listings SET canonical_url = 'https://' WHERE id = ?", (summary.id,)
+    )
+    assert repository.recent().items[0].external_url is None
+
 
 def test_recent_listings_combine_search_portal_event_and_state_filters(listing_queries):
     repository, first_search, second_search = listing_queries
@@ -118,6 +123,26 @@ def test_missing_listing_detail_raises_lookup_error(listing_queries):
 
     with pytest.raises(LookupError):
         repository.get(999)
+
+
+@pytest.mark.parametrize(
+    ("arguments", "error"),
+    (
+        ({"page": 0}, ValueError),
+        ({"per_page": 101}, ValueError),
+        ({"search_id": -1}, ValueError),
+        ({"portal": "pisoscom"}, TypeError),
+        ({"event_type": "new_listing"}, TypeError),
+        ({"active": 1}, TypeError),
+    ),
+)
+def test_recent_listing_query_rejects_unbounded_or_untyped_filters(
+    listing_queries, arguments, error
+):
+    repository, _first_search, _second_search = listing_queries
+
+    with pytest.raises(error):
+        repository.recent(**arguments)
 
 
 def _insert_listing(connection, portal, external_id, title, last_seen_at, active):
