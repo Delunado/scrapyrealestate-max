@@ -37,6 +37,7 @@ from scrapyrealestate.portals import build_default_registry
 from scrapyrealestate.runtime import RuntimePaths, get_runtime_paths
 from scrapyrealestate.services.ingestion import IngestionService
 from scrapyrealestate.services.notification_delivery import DurableNotificationDispatcher
+from scrapyrealestate.services.manual_runs import ManualSearchRunLauncher
 from scrapyrealestate.services.scheduler import InProcessScheduler
 from scrapyrealestate.services.search_orchestration import SearchOrchestrationService
 from scrapyrealestate.services.search_triggering import SearchTriggerService
@@ -74,6 +75,7 @@ class ApplicationRuntime:
         spider_runner: SpiderRunner,
         connection: sqlite3.Connection,
         report: BootstrapReport,
+        manual_runs: ManualSearchRunLauncher | None = None,
     ) -> None:
         self.app = app
         self.scheduler = scheduler
@@ -83,6 +85,7 @@ class ApplicationRuntime:
         self._closed = False
         self._server: ApplicationServer | None = None
         self._shutdown_requested = threading.Event()
+        self._manual_runs = manual_runs
 
     def run(self, server: ApplicationServer) -> None:
         """Run scheduler and web server with temporary process signal handlers."""
@@ -101,6 +104,8 @@ class ApplicationRuntime:
         self._shutdown_requested.set()
         self.scheduler.request_stop()
         self._spider_runner.stop_accepting()
+        if self._manual_runs is not None:
+            self._manual_runs.stop_accepting()
         server = self._server
         if server is not None:
             server.request_shutdown()
@@ -113,9 +118,13 @@ class ApplicationRuntime:
             raise ValueError("grace_seconds cannot be negative")
         self.request_shutdown()
         crawls_stopped = self._spider_runner.shutdown(grace_seconds)
+        manual_runs_stopped = (
+            self._manual_runs is None
+            or self._manual_runs.shutdown(timeout=grace_seconds + 5.0)
+        )
         scheduler_stopped = self.scheduler.stop(timeout=grace_seconds + 5.0)
-        if not scheduler_stopped:
-            logger.error("scheduler did not stop within the shutdown grace period")
+        if not scheduler_stopped or not manual_runs_stopped:
+            logger.error("application workers did not stop within the shutdown grace period")
             return False
         self._connection.close()
         self._closed = True
@@ -147,6 +156,7 @@ def build_application(
         registry = build_default_registry(
             idealista_proxy=_uses_idealista_proxy(connection)
         )
+        active_notifier_registry = notifier_registry or build_default_notifier_registry()
         orchestration = SearchOrchestrationService(
             registry=registry,
             runner=runner,
@@ -155,13 +165,15 @@ def build_application(
             runtime_paths=paths,
             notification_delivery=DurableNotificationDispatcher(
                 notifications,
-                notifier_registry or build_default_notifier_registry(),
+                active_notifier_registry,
             ),
         )
         trigger = SearchTriggerService(searches, orchestration)
+        manual_runs = ManualSearchRunLauncher(trigger)
         scheduler = InProcessScheduler(searches, trigger)
         app = create_app(
             runtime_paths=paths,
+            database=database,
             repositories=WebRepositories(
                 searches=searches,
                 runs=runs,
@@ -171,6 +183,11 @@ def build_application(
                 orchestration=orchestration,
                 search_trigger=trigger,
                 readiness_check=lambda: _database_ready(database),
+                portals=registry,
+                schedule_changed=scheduler.notify_schedule_changed,
+                scheduler_running=lambda: scheduler.is_running,
+                manual_runs=manual_runs,
+                notifier_registry=active_notifier_registry,
             ),
         )
     except BaseException:
@@ -182,6 +199,7 @@ def build_application(
         spider_runner=runner,
         connection=connection,
         report=report,
+        manual_runs=manual_runs,
     )
 
 

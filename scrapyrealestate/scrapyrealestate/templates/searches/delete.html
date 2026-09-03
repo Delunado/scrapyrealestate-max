@@ -1,0 +1,2 @@
+{% extends "base.html" %}{% from "macros/forms.html" import csrf %}
+{% block title %}Eliminar búsqueda · ScrapyRealEstate{% endblock %}{% block content %}<section class="narrow"><h1>Eliminar “{{ search.search.name }}”</h1><p>Se eliminarán su configuración, coincidencias, ejecuciones y eventos asociados. Los anuncios normalizados y su historial global se conservarán.</p><form method="post">{{ csrf() }}<button class="button danger">Confirmar eliminación</button> <a href="{{ url_for('ui.search_list') }}">Cancelar</a></form></section>{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% from "macros/forms.html" import csrf %}
+{% block title %}Búsquedas · ScrapyRealEstate{% endblock %}
+{% block content %}
+<div class="page-heading"><div><h1>Búsquedas</h1><p>Consultas guardadas y sus ejecuciones.</p></div><a class="button" href="{{ url_for('ui.search_create') }}">Nueva búsqueda</a></div>
+{% if searches %}<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Operación</th><th>Intervalo</th><th>Portales</th><th>Último estado</th><th>Acciones</th></tr></thead><tbody>
+{% for search in searches %}{% set latest = statuses.get(search.id) %}
+<tr>
+  <td><strong>{{ search.search.name }}</strong><br><span class="badge {{ 'badge-on' if search.enabled else '' }}">{{ 'Activa' if search.enabled else 'Deshabilitada' }}</span></td>
+  <td>{{ 'Compra' if search.search.transaction_type.value == 'buy' else 'Alquiler' }}</td>
+  <td>{{ search.schedule.interval_seconds|interval }}</td>
+  <td>{{ search.portals|selectattr('enabled')|map(attribute='portal.value')|join(', ') or 'Ninguno' }}</td>
+  <td>{{ latest.run.status.value if latest and latest.run else 'Sin ejecuciones' }}</td>
+  <td class="actions">
+    <a href="{{ url_for('ui.search_edit', search_id=search.id) }}">Editar</a>
+    <a href="{{ url_for('ui.search_notifications', search_id=search.id) }}">Avisos</a>
+    <form method="post" action="{{ url_for('ui.search_run', search_id=search.id) }}">{{ csrf() }}<button class="link-button">Ejecutar</button></form>
+    <form method="post" action="{{ url_for('ui.search_toggle', search_id=search.id) }}">{{ csrf() }}<button class="link-button">{{ 'Deshabilitar' if search.enabled else 'Habilitar' }}</button></form>
+    <a class="danger-link" href="{{ url_for('ui.search_delete', search_id=search.id) }}">Eliminar</a>
+  </td>
+</tr>{% endfor %}</tbody></table></div>
+{% else %}<div class="empty"><p>No hay búsquedas guardadas.</p></div>{% endif %}
+{% endblock %}

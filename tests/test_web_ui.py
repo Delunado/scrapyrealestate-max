@@ -1,0 +1,304 @@
+from datetime import datetime, timezone
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from scrapyrealestate.flask_server import WebRepositories, WebServices, create_app
+from scrapyrealestate.notifiers.base import DeliveryResult
+from scrapyrealestate.notifiers.registry import NotifierRegistry
+from scrapyrealestate.persistence.database import Database
+from scrapyrealestate.persistence.migrations import MIGRATIONS, MigrationRunner
+from scrapyrealestate.persistence.notifications import (
+    NotificationProvider,
+    NotificationRepository,
+)
+from scrapyrealestate.persistence.runs import (
+    RunRepository,
+    SearchRunStatus,
+)
+from scrapyrealestate.persistence.searches import SearchRepository
+from scrapyrealestate.portals import build_default_registry
+from scrapyrealestate.runtime import RuntimePaths
+from scrapyrealestate.services.locks import SearchAlreadyRunningError
+
+
+class _Notifier:
+    def send(self, _event):
+        return DeliveryResult.delivered("safe-test-id")
+
+
+class _Trigger:
+    def __init__(self, runs):
+        self.runs = runs
+        self.conflict = False
+
+    def run_search(self, search_id, trigger):
+        if self.conflict:
+            raise SearchAlreadyRunningError(search_id)
+        now = datetime.now(timezone.utc)
+        run = self.runs.create_run(search_id, trigger)
+        self.runs.start_run(run.id, now)
+        run = self.runs.finish_run(run.id, SearchRunStatus.SUCCESS, now)
+        return SimpleNamespace(run=run)
+
+
+@pytest.fixture
+def web_app(tmp_path: Path):
+    database = Database(tmp_path / "data" / "application.sqlite3")
+    with database.connection(check_same_thread=False) as connection:
+        MigrationRunner(MIGRATIONS).migrate(connection)
+        searches = SearchRepository(connection)
+        runs = RunRepository(connection)
+        notifications = NotificationRepository(connection)
+        registry = NotifierRegistry()
+        for provider in NotificationProvider:
+            registry.register(provider, lambda _channel: _Notifier())
+        trigger = _Trigger(runs)
+        schedule_changes = []
+        app = create_app(
+            runtime_paths=RuntimePaths((tmp_path / "data").resolve()),
+            database=database,
+            repositories=WebRepositories(searches, runs, notifications),
+            services=WebServices(
+                search_trigger=trigger,
+                readiness_check=lambda: True,
+                portals=build_default_registry(),
+                schedule_changed=lambda: schedule_changes.append(True),
+                scheduler_running=lambda: True,
+                notifier_registry=registry,
+            ),
+            config={"TESTING": True, "SECRET_KEY": "test-only-key"},
+        )
+        yield app, connection, trigger, schedule_changes
+
+
+def _csrf(client):
+    with client.session_transaction() as flask_session:
+        flask_session["_csrf_token"] = "known-token"
+    return "known-token"
+
+
+def _search_form(**overrides):
+    values = {
+        "csrf_token": "known-token",
+        "name": "Madrid centro",
+        "transaction_type": "rent",
+        "interval_minutes": "15",
+        "enabled": "on",
+        "location": "Madrid",
+        "portal_pisoscom": "on",
+        "action": "save",
+    }
+    values.update(overrides)
+    return values
+
+
+def test_dashboard_and_search_crud_use_prg_and_csrf(web_app):
+    app, connection, _trigger, schedule_changes = web_app
+    client = app.test_client()
+    token = _csrf(client)
+
+    assert client.get("/").status_code == 200
+    assert client.post("/searches/new", data=_search_form(csrf_token="bad")).status_code == 400
+
+    response = client.post("/searches/new", data=_search_form(csrf_token=token))
+    assert response.status_code == 302
+    search = SearchRepository(connection).list()[0]
+    assert response.headers["Location"].endswith(f"/searches/{search.id}/edit")
+    assert search.search.filters.location == "Madrid"
+    assert search.portals[0].portal.value == "pisoscom"
+    assert schedule_changes == [True]
+
+    listing = client.get("/searches")
+    assert listing.status_code == 200
+    assert "Madrid centro" in listing.get_data(as_text=True)
+
+    response = client.post(
+        f"/searches/{search.id}/toggle", data={"csrf_token": token}
+    )
+    assert response.status_code == 302
+    assert SearchRepository(connection).get(search.id).enabled is False
+
+
+def test_search_preview_reports_local_coverage_without_saving(web_app):
+    app, connection, _trigger, _changes = web_app
+    client = app.test_client()
+    token = _csrf(client)
+
+    response = client.post(
+        "/searches/new",
+        data=_search_form(
+            csrf_token=token,
+            action="preview",
+            max_price_euros="1500",
+        ),
+    )
+
+    page = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert "Cobertura solicitada" in page
+    assert "max_price_euros" in page
+    assert SearchRepository(connection).list() == ()
+
+
+def test_edit_rejects_stale_version_and_preserves_unknown_filter_keys(web_app):
+    app, connection, _trigger, _changes = web_app
+    client = app.test_client()
+    token = _csrf(client)
+    client.post("/searches/new", data=_search_form(csrf_token=token))
+    record = SearchRepository(connection).list()[0]
+    connection.execute(
+        "UPDATE searches SET filters_json = json_set(filters_json, '$.future_filter', 'keep-me') WHERE id = ?",
+        (record.id,),
+    )
+
+    stale = client.post(
+        f"/searches/{record.id}/edit",
+        data=_search_form(csrf_token=token, version="0", name="Changed"),
+    )
+    assert stale.status_code == 409
+    assert "otra sesión" in stale.get_data(as_text=True)
+
+    current = SearchRepository(connection).get(record.id)
+    saved = client.post(
+        f"/searches/{record.id}/edit",
+        data=_search_form(
+            csrf_token=token,
+            version=str(current.version),
+            name="Changed",
+        ),
+    )
+    assert saved.status_code == 302
+    assert connection.execute(
+        "SELECT json_extract(filters_json, '$.future_filter') FROM searches WHERE id = ?",
+        (record.id,),
+    ).fetchone()[0] == "keep-me"
+
+
+def test_raw_url_is_validated_by_selected_portal(web_app):
+    app, connection, _trigger, _changes = web_app
+    client = app.test_client()
+    token = _csrf(client)
+
+    response = client.post(
+        "/searches/new",
+        data=_search_form(
+            csrf_token=token,
+            raw_url_pisoscom="https://example.com/alquiler/pisos-madrid/",
+        ),
+    )
+
+    assert response.status_code == 400
+    assert "does not belong" in response.get_data(as_text=True)
+    assert SearchRepository(connection).list() == ()
+
+
+def test_manual_run_redirects_to_status_and_reports_conflict(web_app):
+    app, connection, trigger, _changes = web_app
+    client = app.test_client()
+    token = _csrf(client)
+    client.post("/searches/new", data=_search_form(csrf_token=token))
+    search_id = SearchRepository(connection).list()[0].id
+
+    response = client.post(
+        f"/searches/{search_id}/run", data={"csrf_token": token}
+    )
+    assert response.status_code == 303
+    status = client.get(response.headers["Location"])
+    assert status.status_code == 200
+    assert "Ejecución #" in status.get_data(as_text=True)
+
+    trigger.conflict = True
+    response = client.post(
+        f"/searches/{search_id}/run", data={"csrf_token": token}
+    )
+    assert response.status_code == 303
+    assert response.headers["Location"].endswith("/searches")
+
+
+def test_channel_crud_masks_secrets_and_records_safe_test(web_app):
+    app, connection, _trigger, _changes = web_app
+    client = app.test_client()
+    token = _csrf(client)
+    secret = "12345:super-secret-token"
+
+    response = client.post(
+        "/channels/new",
+        data={
+            "csrf_token": token,
+            "name": "Telegram personal",
+            "provider": "telegram",
+            "chat_id": "-100123",
+            "bot_token": secret,
+            "enabled": "on",
+        },
+    )
+    assert response.status_code == 302
+    channel = NotificationRepository(connection).list_channels()[0]
+    page = client.get(response.headers["Location"]).get_data(as_text=True)
+    assert secret not in page
+    assert "super-secret-token" not in page
+
+    response = client.post(
+        f"/channels/{channel.id}/test", data={"csrf_token": token}
+    )
+    assert response.status_code == 302
+    test = NotificationRepository(connection).latest_channel_test(channel.id)
+    assert test.success is True
+    assert secret not in repr(test)
+
+    response = client.post(
+        f"/channels/{channel.id}/edit",
+        data={
+            "csrf_token": token,
+            "name": "Telegram renamed",
+            "provider": "telegram",
+            "chat_id": "-100456",
+            "bot_token": "",
+            "enabled": "on",
+        },
+    )
+    assert response.status_code == 302
+    delivery = NotificationRepository(connection).delivery_channel(channel.id)
+    assert delivery.secret_config["bot_token"] == secret
+
+
+def test_notification_assignments_and_preferences_are_saved(web_app):
+    app, connection, _trigger, _changes = web_app
+    client = app.test_client()
+    token = _csrf(client)
+    client.post("/searches/new", data=_search_form(csrf_token=token))
+    search_id = SearchRepository(connection).list()[0].id
+    channel_id = NotificationRepository(connection).create_channel(
+        "Webhook", NotificationProvider.WEBHOOK
+    ).id
+
+    response = client.post(
+        f"/searches/{search_id}/notifications",
+        data={
+            "csrf_token": token,
+            "channel_ids": str(channel_id),
+            "new_listing": "on",
+            "reappearance": "on",
+        },
+    )
+
+    assert response.status_code == 302
+    repository = NotificationRepository(connection)
+    assert [item.id for item in repository.channels_for_search(search_id)] == [channel_id]
+    preferences = repository.preferences_for_search(search_id)
+    assert preferences.new_listing is True
+    assert preferences.price_drop is False
+    assert preferences.reappearance is True
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["/searches/999/edit", "/channels/999/edit", "/runs/999"],
+)
+def test_missing_management_records_return_safe_404(web_app, path):
+    app, _connection, _trigger, _changes = web_app
+    response = app.test_client().get(path)
+    assert response.status_code == 404
+    assert "no existe" in response.get_data(as_text=True)

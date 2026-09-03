@@ -1,0 +1,41 @@
+{% extends "base.html" %}{% from "macros/forms.html" import errors_for, csrf %}
+{% block title %}{{ 'Editar' if record else 'Nueva' }} búsqueda · ScrapyRealEstate{% endblock %}
+{% block content %}
+{% set saved = record.search if record else none %}
+{% set filters = saved.filters if saved else none %}
+{% set submitted = request.method == 'POST' %}
+<div class="page-heading"><div><h1>{{ 'Editar búsqueda' if record else 'Nueva búsqueda' }}</h1><p>Los filtros normalizados se comprueban localmente tras cada portal.</p></div></div>
+{{ errors_for(errors, 'form') }}
+<form method="post" class="stacked-form">
+  {{ csrf() }}{% if record %}<input type="hidden" name="version" value="{{ record.version }}">{% endif %}
+  <fieldset><legend>Datos básicos</legend><div class="form-grid">
+    <div><label for="name">Nombre</label><input id="name" name="name" required value="{{ request.form.get('name', saved.name if saved else '') }}">{{ errors_for(errors, 'name') }}</div>
+    <div><label for="transaction_type">Operación</label>{% set tx = request.form.get('transaction_type', saved.transaction_type.value if saved else 'rent') %}<select id="transaction_type" name="transaction_type">{% for value in transaction_types %}<option value="{{ value.value }}" {{ 'selected' if tx == value.value }}>{{ 'Compra' if value.value == 'buy' else 'Alquiler' }}</option>{% endfor %}</select></div>
+    <div><label for="interval_minutes">Intervalo (minutos)</label><input id="interval_minutes" name="interval_minutes" type="number" min="5" required value="{{ request.form.get('interval_minutes', (record.schedule.interval_seconds // 60) if record else 15) }}">{{ errors_for(errors, 'interval_minutes') }}</div>
+    <label class="check"><input type="checkbox" name="enabled" {{ 'checked' if (request.form.get('enabled') == 'on' if submitted else (record.enabled if record else true)) }}> Planificación habilitada</label>
+  </div></fieldset>
+
+  <fieldset><legend>Ubicación y características</legend><div class="form-grid">
+    {% for field, label in [('location','Municipio o ubicación'),('neighbourhood','Barrio')] %}<div><label for="{{ field }}">{{ label }}</label><input id="{{ field }}" name="{{ field }}" value="{{ request.form.get(field, filters|attr(field) if filters else '') or '' }}">{{ errors_for(errors, field) }}</div>{% endfor %}
+    {% for field, label in [('min_price_euros','Precio mínimo (€)'),('max_price_euros','Precio máximo (€)'),('min_area_sqm','Superficie mínima (m²)'),('max_area_sqm','Superficie máxima (m²)'),('min_rooms','Habitaciones mínimas'),('max_rooms','Habitaciones máximas'),('min_bathrooms','Baños mínimos'),('max_bathrooms','Baños máximos'),('min_floor','Planta mínima'),('max_floor','Planta máxima'),('max_price_per_sqm','Precio máximo por m²')] %}
+    <div><label for="{{ field }}">{{ label }}</label><input id="{{ field }}" name="{{ field }}" type="number" step="{{ 'any' if 'sqm' in field else '1' }}" value="{{ request.form.get(field, filters|attr(field) if filters and filters|attr(field) is not none else '') }}">{{ errors_for(errors, field) }}</div>{% endfor %}
+    {% for field, label in [('elevator','Ascensor'),('terrace','Terraza'),('garage','Garaje')] %}{% set current = request.form.get(field, ('true' if filters and filters|attr(field) is sameas true else 'false' if filters and filters|attr(field) is sameas false else '')) %}<div><label for="{{ field }}">{{ label }}</label><select id="{{ field }}" name="{{ field }}"><option value="" {{ 'selected' if current == '' }}>Sin filtro</option><option value="true" {{ 'selected' if current == 'true' }}>Sí</option><option value="false" {{ 'selected' if current == 'false' }}>No</option></select></div>{% endfor %}
+  </div>
+  <div><span class="field-label">Tipos de inmueble</span><div class="checkbox-grid">{% for value in property_types %}{% set selected = value.value in request.form.getlist('property_types') if submitted else (filters and value in filters.property_types) %}<label class="check"><input type="checkbox" name="property_types" value="{{ value.value }}" {{ 'checked' if selected }}> {{ value.value }}</label>{% endfor %}</div></div>
+  </fieldset>
+
+  <fieldset><legend>Portales</legend><p class="help">Sin URL avanzada, la aplicación construye una URL desde la ubicación. Idealista necesita una URL manual porque su taxonomía no se puede deducir de forma segura.</p>{{ errors_for(errors, 'portals') }}
+  {% for adapter in adapters %}{% set key = adapter.metadata.key.value %}{% set existing = record.portals|selectattr('portal', 'equalto', adapter.metadata.key)|list|first if record else none %}{% set selected = request.form.get('portal_' ~ key) == 'on' if submitted else (existing.enabled if existing else false) %}
+    <div class="portal-card {{ 'degraded' if adapter.metadata.degraded }}">
+      <label class="check portal-title"><input type="checkbox" name="portal_{{ key }}" {{ 'checked' if selected }}> <strong>{{ adapter.metadata.display_name }}</strong> <span class="badge">{{ adapter.metadata.transport.value }}</span>{% if adapter.metadata.degraded %} <span class="badge badge-warning">Degradado</span>{% endif %}</label>
+      {% if adapter.metadata.caveats %}<p class="help">{{ adapter.metadata.caveats }}</p>{% endif %}
+      <label for="raw_url_{{ key }}">URL avanzada opcional</label><input id="raw_url_{{ key }}" name="raw_url_{{ key }}" type="url" placeholder="https://…" value="{{ request.form.get('raw_url_' ~ key, existing.raw_url_override if existing else '') or '' }}">
+      {{ errors_for(errors, 'portal_' ~ key) }}
+    </div>
+  {% endfor %}</fieldset>
+
+  {% if parsed and parsed.coverage %}<section class="coverage"><h2>Cobertura solicitada</h2><p class="help">Remoto: incluido en la petición al portal. Local: comprobado después de descargar. No compatible: no se puede garantizar.</p>{% for item in parsed.coverage %}<article><h3>{{ item.metadata.display_name }}</h3><dl><dt>Remoto</dt><dd>{{ item.remote|join(', ') or 'Ninguno' }}</dd><dt>Local</dt><dd>{{ item.local|join(', ') or 'Ninguno' }}</dd><dt>No compatible</dt><dd class="{{ 'danger-text' if item.unsupported }}">{{ item.unsupported|join(', ') or 'Ninguno' }}</dd></dl></article>{% endfor %}</section>{% endif %}
+
+  <div class="form-actions"><button class="button secondary" name="action" value="preview">Vista previa de cobertura</button><button class="button" name="action" value="save">Guardar</button>{% if record %}<a href="{{ url_for('ui.search_list') }}">Cancelar</a>{% endif %}</div>
+</form>
+{% endblock %}

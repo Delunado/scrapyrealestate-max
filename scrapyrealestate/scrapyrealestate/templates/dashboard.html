@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Panel · ScrapyRealEstate{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div><h1>Panel</h1><p>Estado local de búsquedas y planificación.</p></div>
+  <a class="button" href="{{ url_for('ui.search_create') }}">Nueva búsqueda</a>
+</div>
+
+<section class="summary-grid" aria-label="Resumen de estado">
+  <article class="card"><span class="eyebrow">Aplicación</span><strong class="status-ok">Disponible</strong></article>
+  <article class="card"><span class="eyebrow">Planificador</span><strong class="{{ 'status-ok' if scheduler_running else 'status-warning' }}">{{ 'En marcha' if scheduler_running else 'Detenido' }}</strong></article>
+  <article class="card"><span class="eyebrow">Búsquedas activas</span><strong>{{ searches|selectattr('enabled')|list|length }}</strong></article>
+</section>
+
+{% if degraded_portals %}
+<section class="callout warning">
+  <h2>Portales degradados</h2>
+  <p>{% for portal in degraded_portals %}<strong>{{ portal.display_name }}</strong>{% if portal.caveats %}: {{ portal.caveats }}{% endif %}{% if not loop.last %}<br>{% endif %}{% endfor %}</p>
+</section>
+{% endif %}
+
+<section>
+  <div class="section-heading"><h2>Búsquedas</h2><a href="{{ url_for('ui.search_list') }}">Gestionar</a></div>
+  {% if searches %}
+  <div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Estado</th><th>Última ejecución</th><th>Próxima</th><th>Nuevos</th></tr></thead><tbody>
+  {% for search in searches %}{% set latest = statuses.get(search.id) %}
+    <tr><td><a href="{{ url_for('ui.search_edit', search_id=search.id) }}">{{ search.search.name }}</a></td><td>{{ 'Activa' if search.enabled else 'Deshabilitada' }}</td><td>{{ latest.run.status.value if latest and latest.run else 'Sin ejecuciones' }}</td><td>{{ latest.next_run_at if latest and latest.next_run_at else '—' }}</td><td>{{ latest.run.counts.new if latest and latest.run else 0 }}</td></tr>
+  {% endfor %}</tbody></table></div>
+  {% else %}<div class="empty"><p>Aún no hay búsquedas.</p><a class="button" href="{{ url_for('ui.search_create') }}">Crear la primera</a></div>{% endif %}
+</section>
+
+<section>
+  <h2>Descubrimientos recientes</h2>
+  {% if recent_events %}<ul class="event-list">{% for event in recent_events %}<li><span class="badge">{{ event.event_type.value }}</span> Búsqueda #{{ event.search_id }} <time>{{ event.occurred_at }}</time></li>{% endfor %}</ul>
+  {% else %}<p class="muted">Todavía no se han generado eventos de anuncios.</p>{% endif %}
+</section>
+{% endblock %}

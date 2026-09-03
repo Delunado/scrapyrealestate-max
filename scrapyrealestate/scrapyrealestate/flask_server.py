@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from collections.abc import Callable
+import secrets
 from typing import TYPE_CHECKING, Any, Mapping
 
 from flask import Blueprint, Flask, current_app, jsonify, render_template, request
@@ -17,6 +18,8 @@ from scrapyrealestate.atomic_files import atomic_write_json
 from scrapyrealestate.runtime import RuntimePaths, get_runtime_paths
 
 if TYPE_CHECKING:
+    from scrapyrealestate.persistence.database import Database
+    from scrapyrealestate.notifiers.registry import NotifierRegistry
     from scrapyrealestate.persistence.notifications import NotificationRepository
     from scrapyrealestate.persistence.runs import RunRepository
     from scrapyrealestate.persistence.searches import SearchRepository
@@ -24,6 +27,11 @@ if TYPE_CHECKING:
         SearchOrchestrationService,
     )
     from scrapyrealestate.services.search_triggering import SearchTriggerService
+    from scrapyrealestate.services.notification_configuration import (
+        NotificationChannelConfigurationService,
+    )
+    from scrapyrealestate.services.manual_runs import ManualSearchRunLauncher
+    from scrapyrealestate.portals.registry import PortalRegistry
 
 
 WEB_CONTEXT_EXTENSION = "scrapyrealestate.web_context"
@@ -52,6 +60,12 @@ class WebServices:
     orchestration: SearchOrchestrationService | None = None
     search_trigger: SearchTriggerService | None = None
     readiness_check: Callable[[], bool] | None = None
+    portals: PortalRegistry | None = None
+    notification_configuration: NotificationChannelConfigurationService | None = None
+    schedule_changed: Callable[[], None] | None = None
+    scheduler_running: Callable[[], bool] | None = None
+    manual_runs: ManualSearchRunLauncher | None = None
+    notifier_registry: NotifierRegistry | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +75,7 @@ class WebApplicationContext:
     runtime_paths: RuntimePaths
     repositories: WebRepositories = field(default_factory=WebRepositories)
     services: WebServices = field(default_factory=WebServices)
+    database: Database | None = None
 
 
 routes = Blueprint("legacy_configuration", __name__)
@@ -71,6 +86,7 @@ def create_app(
     runtime_paths: RuntimePaths | None = None,
     repositories: WebRepositories | None = None,
     services: WebServices | None = None,
+    database: Database | None = None,
     config: Mapping[str, Any] | None = None,
 ) -> Flask:
     """Create an independently configured, long-lived Flask application.
@@ -80,6 +96,7 @@ def create_app(
     persistent bootstrap supplies the SQLite-backed collaborators it owns.
     """
     app = Flask(__name__, template_folder="templates")
+    app.config["SECRET_KEY"] = secrets.token_hex(32)
     if config is not None:
         app.config.from_mapping(config)
 
@@ -87,8 +104,33 @@ def create_app(
         runtime_paths=runtime_paths or get_runtime_paths(),
         repositories=repositories or WebRepositories(),
         services=services or WebServices(),
+        database=database,
     )
     app.register_blueprint(routes)
+    from scrapyrealestate.web_ui import csrf_token, ui
+
+    app.register_blueprint(ui)
+    app.context_processor(lambda: {"csrf_token": csrf_token})
+    app.jinja_env.globals["csrf_token"] = csrf_token
+    app.jinja_env.filters["duration"] = _format_duration
+    app.jinja_env.filters["interval"] = _format_interval
+
+    @app.teardown_request
+    def close_request_database(_error):
+        from flask import g
+
+        connection = g.pop("scrapyrealestate_connection", None)
+        if connection is not None:
+            connection.close()
+
+    @app.errorhandler(404)
+    def not_found(_error):
+        return render_template("error.html", title="No encontrado", message="El recurso solicitado no existe."), 404
+
+    @app.errorhandler(400)
+    def bad_request(_error):
+        return render_template("error.html", title="Solicitud no válida", message="La solicitud no es válida o ha caducado."), 400
+
     return app
 
 
@@ -114,9 +156,8 @@ def readiness():
     return jsonify(status="ready" if ready else "not_ready"), 200 if ready else 503
 
 
-@routes.route("/")
-@routes.route("/home")
-def home():
+@routes.route("/legacy")
+def legacy_configuration():
     return render_template("index.html")
 
 
@@ -131,3 +172,16 @@ def result():
         return render_template("info.html")
 
     return render_template("index.html")
+
+
+def _format_duration(value: float | None) -> str:
+    if value is None:
+        return "—"
+    return f"{value:.1f} s"
+
+
+def _format_interval(value: int) -> str:
+    if value % 3600 == 0:
+        hours = value // 3600
+        return f"{hours} h"
+    return f"{value // 60} min"
