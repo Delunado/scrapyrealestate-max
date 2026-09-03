@@ -1,1 +1,40 @@
-{% extends "base.html" %}{% block title %}Ejecución #{{ run.id }} · ScrapyRealEstate{% endblock %}{% block content %}<div class="page-heading"><div><h1>Ejecución #{{ run.id }}</h1><p>Estado: <span class="badge">{{ run.status.value }}</span> · Duración: {{ run.duration_seconds|duration }}</p></div><a href="{{ url_for('ui.search_list') }}">Volver</a></div><section class="summary-grid"><article class="card"><span class="eyebrow">Devueltos</span><strong>{{ run.counts.returned }}</strong></article><article class="card"><span class="eyebrow">Coincidentes</span><strong>{{ run.counts.matched }}</strong></article><article class="card"><span class="eyebrow">Nuevos</span><strong>{{ run.counts.new }}</strong></article></section><h2>Intentos por portal</h2>{% if attempts %}<div class="table-wrap"><table><thead><tr><th>Portal</th><th>Estado</th><th>Duración</th><th>Resultados</th><th>Incidencia</th></tr></thead><tbody>{% for attempt in attempts %}<tr><td>{{ attempt.portal.value }}</td><td>{{ attempt.status }}</td><td>{{ attempt.duration_seconds|duration }}</td><td>{{ attempt.counts.matched }} coincidentes</td><td>{{ attempt.error_category or '—' }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p>No se intentó ningún portal.</p>{% endif %}{% endblock %}
+{% extends "base.html" %}
+{% block title %}Ejecución #{{ run.id }} · ScrapyRealEstate{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <span class="eyebrow">{{ run.trigger.value }}</span>
+    <h1>Ejecución #{{ run.id }}</h1>
+    <p>Estado: <span class="badge">{{ run.status.value }}</span> · Duración: {{ run.duration_seconds|duration }}</p>
+  </div>
+  <a href="{{ url_for('ui.search_list') }}">Volver</a>
+</div>
+<section class="summary-grid">
+  <article class="card"><span class="eyebrow">Devueltos</span><strong>{{ run.counts.returned }}</strong></article>
+  <article class="card"><span class="eyebrow">Coincidentes</span><strong>{{ run.counts.matched }}</strong></article>
+  <article class="card"><span class="eyebrow">Nuevos</span><strong>{{ run.counts.new }}</strong></article>
+  <article class="card"><span class="eyebrow">Cambiados</span><strong>{{ run.counts.changed }}</strong></article>
+</section>
+{% if run.error_category or run.redacted_diagnostic %}
+<section class="callout" aria-label="Resumen de incidencia">
+  <strong>{{ run.error_category or 'Incidencia' }}</strong>
+  {% if run.redacted_diagnostic %}<p>{{ run.redacted_diagnostic }}</p>{% endif %}
+</section>
+{% endif %}
+<h2>Intentos por portal</h2>
+{% if attempts %}
+<div class="table-wrap"><table>
+  <thead><tr><th>Portal</th><th>Estado</th><th>Duración</th><th>Devueltos</th><th>Coincidentes</th><th>Nuevos</th><th>Cambiados</th><th>Incidencia</th></tr></thead>
+  <tbody>{% for attempt in attempts %}<tr>
+    <td>{{ attempt.portal.value }}</td>
+    <td><span class="badge">{{ attempt.status }}</span></td>
+    <td>{{ attempt.duration_seconds|duration }}</td>
+    <td>{{ attempt.counts.returned }}</td>
+    <td>{{ attempt.counts.matched }}</td>
+    <td>{{ attempt.counts.new }}</td>
+    <td>{{ attempt.counts.changed }}</td>
+    <td>{% if attempt.error_category %}<strong>{{ attempt.error_category }}</strong>{% endif %}{% if attempt.redacted_diagnostic %}<div class="diagnostic">{{ attempt.redacted_diagnostic }}</div>{% elif not attempt.error_category %}—{% endif %}</td>
+  </tr>{% endfor %}</tbody>
+</table></div>
+{% else %}<p>No se intentó ningún portal.</p>{% endif %}
+{% endblock %}

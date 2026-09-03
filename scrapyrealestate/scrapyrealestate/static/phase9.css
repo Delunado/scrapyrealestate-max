@@ -6,6 +6,7 @@
   margin-bottom: 1.25rem;
 }
 .view-switcher { display: flex; flex-wrap: wrap; gap: .75rem; margin-bottom: 1rem; }
+.diagnostic { color: var(--muted); font-size: .85rem; max-width: 28rem; overflow-wrap: anywhere; }
 .listing-list { display: grid; gap: .8rem; }
 .listing-list h2 { font-size: 1.1rem; margin: .1rem 0; }
 .listing-list p { color: var(--muted); margin: .35rem 0; }

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from scrapyrealestate.flask_server import WebRepositories, WebServices, create_app
+from scrapyrealestate.domain.values import PortalKey, RunStatus
 from scrapyrealestate.notifiers.base import DeliveryResult
 from scrapyrealestate.notifiers.registry import NotifierRegistry
 from scrapyrealestate.persistence.database import Database
@@ -14,8 +15,10 @@ from scrapyrealestate.persistence.notifications import (
     NotificationRepository,
 )
 from scrapyrealestate.persistence.runs import (
+    RunCounts,
     RunRepository,
     SearchRunStatus,
+    TriggerKind,
 )
 from scrapyrealestate.persistence.searches import SearchRepository
 from scrapyrealestate.portals import build_default_registry
@@ -215,6 +218,44 @@ def test_manual_run_redirects_to_status_and_reports_conflict(web_app):
     )
     assert response.status_code == 303
     assert response.headers["Location"].endswith("/searches")
+
+
+def test_run_detail_shows_portal_counts_and_redacted_diagnostic(web_app):
+    app, connection, _trigger, _changes = web_app
+    client = app.test_client()
+    token = _csrf(client)
+    client.post("/searches/new", data=_search_form(csrf_token=token))
+    search_id = SearchRepository(connection).list()[0].id
+    runs = RunRepository(connection)
+    started = datetime(2026, 9, 3, 10, tzinfo=timezone.utc)
+    finished = datetime(2026, 9, 3, 10, 1, tzinfo=timezone.utc)
+    run = runs.start_run(runs.create_run(search_id, TriggerKind.MANUAL).id, started)
+    attempt = runs.start_attempt(run.id, PortalKey.FOTOCASA, started)
+    counts = RunCounts(returned=7, matched=5, new=2, changed=1)
+    runs.finish_attempt(
+        attempt.id,
+        RunStatus.PARSER_ERROR,
+        finished,
+        counts=counts,
+        error_category="parser_error",
+        redacted_diagnostic="safe parser summary",
+    )
+    runs.finish_run(
+        run.id,
+        SearchRunStatus.FAILED,
+        finished,
+        counts=counts,
+        error_category="failed",
+        redacted_diagnostic="safe run summary",
+    )
+
+    page = client.get(f"/runs/{run.id}").get_data(as_text=True)
+
+    assert "fotocasa" in page
+    assert "parser_error" in page
+    assert "safe parser summary" in page
+    assert "safe run summary" in page
+    assert all(label in page for label in ("Devueltos", "Coincidentes", "Nuevos"))
 
 
 def test_recent_listings_page_filters_and_rejects_invalid_queries(web_app):
