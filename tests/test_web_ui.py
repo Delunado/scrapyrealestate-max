@@ -217,6 +217,26 @@ def test_manual_run_redirects_to_status_and_reports_conflict(web_app):
     assert response.headers["Location"].endswith("/searches")
 
 
+def test_recent_listings_page_filters_and_rejects_invalid_queries(web_app):
+    app, connection, _trigger, _changes = web_app
+    listing_id = connection.execute(
+        """
+        INSERT INTO listings (
+            portal_key, external_id, transaction_type, title,
+            first_seen_at, last_seen_at
+        ) VALUES ('pisoscom', 'recent-1', 'rent', 'Piso reciente',
+                  '2026-09-03T10:00:00Z', '2026-09-03T11:00:00Z') RETURNING id
+        """
+    ).fetchone()[0]
+    assert listing_id > 0
+
+    response = app.test_client().get("/listings?portal=pisoscom&active=active")
+
+    assert response.status_code == 200
+    assert "Piso reciente" in response.get_data(as_text=True)
+    assert app.test_client().get("/listings?page=0").status_code == 400
+
+
 def test_channel_crud_masks_secrets_and_records_safe_test(web_app):
     app, connection, _trigger, _changes = web_app
     client = app.test_client()

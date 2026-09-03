@@ -25,6 +25,7 @@ from scrapyrealestate.flask_server import (
 from scrapyrealestate.persistence.database import Database
 from scrapyrealestate.persistence.legacy_import import LegacyConfigImporter
 from scrapyrealestate.persistence.legacy_seen import LegacySeenRepository
+from scrapyrealestate.persistence.listings import ListingQueryRepository
 from scrapyrealestate.persistence.migrations import MIGRATIONS, MigrationRunner
 from scrapyrealestate.persistence.notifications import NotificationRepository
 from scrapyrealestate.persistence.runs import RunRepository
@@ -178,6 +179,7 @@ def build_application(
                 searches=searches,
                 runs=runs,
                 notifications=notifications,
+                listings=ListingQueryRepository(connection),
             ),
             services=WebServices(
                 orchestration=orchestration,

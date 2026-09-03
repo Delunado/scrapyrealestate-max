@@ -1,0 +1,17 @@
+.filter-form {
+  align-items: end;
+  display: grid;
+  gap: .8rem;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin-bottom: 1.25rem;
+}
+.listing-list { display: grid; gap: .8rem; }
+.listing-list h2 { font-size: 1.1rem; margin: .1rem 0; }
+.listing-list p { color: var(--muted); margin: .35rem 0; }
+.pagination {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1.25rem;
+}

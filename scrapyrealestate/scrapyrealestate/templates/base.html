@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}ScrapyRealEstate{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='phase9.css') }}">
 </head>
 <body>
   <header class="site-header">
@@ -12,6 +13,7 @@
     <nav aria-label="Navegación principal">
       <a href="{{ url_for('ui.dashboard') }}">Panel</a>
       <a href="{{ url_for('ui.search_list') }}">Búsquedas</a>
+      <a href="{{ url_for('ui.listing_list') }}">Anuncios</a>
       <a href="{{ url_for('ui.channel_list') }}">Notificaciones</a>
     </nav>
   </header>

@@ -19,6 +19,7 @@ from scrapyrealestate.runtime import RuntimePaths, get_runtime_paths
 
 if TYPE_CHECKING:
     from scrapyrealestate.persistence.database import Database
+    from scrapyrealestate.persistence.listings import ListingQueryRepository
     from scrapyrealestate.notifiers.registry import NotifierRegistry
     from scrapyrealestate.persistence.notifications import NotificationRepository
     from scrapyrealestate.persistence.runs import RunRepository
@@ -51,6 +52,7 @@ class WebRepositories:
     searches: SearchRepository | None = None
     runs: RunRepository | None = None
     notifications: NotificationRepository | None = None
+    listings: ListingQueryRepository | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import math
 import sqlite3
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
 from scrapyrealestate.domain.listing import NormalizedListing
+from scrapyrealestate.domain.notification import NotificationEventType
 from scrapyrealestate.domain.values import PortalKey, RunStatus
 from scrapyrealestate.persistence.database import transaction
 
@@ -36,6 +38,124 @@ class DisappearanceResult:
 
 class ListingIdentityConflictError(RuntimeError):
     """A listing's external ID and canonical URL resolve to different rows."""
+
+
+@dataclass(frozen=True, slots=True)
+class ListingSummaryRecord:
+    id: int
+    portal: PortalKey
+    title: str
+    canonical_url: str | None
+    price_euros: int | None
+    area_sqm: float | None
+    rooms: int | None
+    active: bool
+    first_seen_at: str
+    last_seen_at: str
+
+
+@dataclass(frozen=True, slots=True)
+class ListingPage:
+    items: tuple[ListingSummaryRecord, ...]
+    page: int
+    per_page: int
+    total: int
+
+    @property
+    def pages(self) -> int:
+        return math.ceil(self.total / self.per_page) if self.total else 0
+
+    @property
+    def has_previous(self) -> bool:
+        return self.page > 1
+
+    @property
+    def has_next(self) -> bool:
+        return self.page < self.pages
+
+
+class ListingQueryRepository:
+    """Read-only listing history queries for operational web views."""
+
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        self.connection = connection
+
+    def recent(
+        self,
+        *,
+        page: int = 1,
+        per_page: int = 25,
+        search_id: int | None = None,
+        portal: PortalKey | None = None,
+        event_type: NotificationEventType | None = None,
+        active: bool | None = None,
+    ) -> ListingPage:
+        if isinstance(page, bool) or not isinstance(page, int) or page < 1:
+            raise ValueError("page must be a positive integer")
+        if (
+            isinstance(per_page, bool)
+            or not isinstance(per_page, int)
+            or not 1 <= per_page <= 100
+        ):
+            raise ValueError("per_page must be between 1 and 100")
+        if search_id is not None and (
+            isinstance(search_id, bool) or not isinstance(search_id, int) or search_id < 1
+        ):
+            raise ValueError("search_id must be a positive integer")
+        if portal is not None and not isinstance(portal, PortalKey):
+            raise TypeError("portal must be a PortalKey")
+        if event_type is not None and not isinstance(event_type, NotificationEventType):
+            raise TypeError("event_type must be a NotificationEventType")
+        if active is not None and not isinstance(active, bool):
+            raise TypeError("active must be a boolean or None")
+
+        clauses: list[str] = []
+        parameters: list[object] = []
+        if search_id is not None:
+            clauses.append(
+                "EXISTS (SELECT 1 FROM search_listing_matches AS matches "
+                "WHERE matches.listing_id = l.id AND matches.search_id = ?)"
+            )
+            parameters.append(search_id)
+        if portal is not None:
+            clauses.append("l.portal_key = ?")
+            parameters.append(portal.value)
+        if event_type is not None:
+            event_search = " AND events.search_id = ?" if search_id is not None else ""
+            clauses.append(
+                "EXISTS (SELECT 1 FROM notification_events AS events "
+                "WHERE events.listing_id = l.id AND events.event_type = ?"
+                f"{event_search})"
+            )
+            parameters.append(event_type.value)
+            if search_id is not None:
+                parameters.append(search_id)
+        if active is not None:
+            clauses.append("l.active = ?")
+            parameters.append(int(active))
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+
+        total = self.connection.execute(
+            f"SELECT count(*) FROM listings AS l {where}",  # noqa: S608
+            parameters,
+        ).fetchone()[0]
+        rows = self.connection.execute(
+            f"""
+            SELECT l.id, l.portal_key, l.title, l.canonical_url, l.price_euros,
+                   l.area_sqm, l.rooms, l.active, l.first_seen_at, l.last_seen_at
+            FROM listings AS l
+            {where}
+            ORDER BY datetime(l.last_seen_at) DESC, l.id DESC
+            LIMIT ? OFFSET ?
+            """,  # noqa: S608
+            (*parameters, per_page, (page - 1) * per_page),
+        ).fetchall()
+        return ListingPage(
+            items=tuple(_summary_record(row) for row in rows),
+            page=page,
+            per_page=per_page,
+            total=total,
+        )
 
 
 class ListingMatchRepository:
@@ -297,6 +417,21 @@ def _listing_values(listing: NormalizedListing) -> tuple[Any, ...]:
         listing.street,
         listing.street_number,
         _timestamp(listing.posted_at) if listing.posted_at is not None else None,
+    )
+
+
+def _summary_record(row: sqlite3.Row) -> ListingSummaryRecord:
+    return ListingSummaryRecord(
+        id=row["id"],
+        portal=PortalKey(row["portal_key"]),
+        title=row["title"],
+        canonical_url=row["canonical_url"],
+        price_euros=row["price_euros"],
+        area_sqm=row["area_sqm"],
+        rooms=row["rooms"],
+        active=bool(row["active"]),
+        first_seen_at=row["first_seen_at"],
+        last_seen_at=row["last_seen_at"],
     )
 
 

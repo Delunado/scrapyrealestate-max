@@ -20,9 +20,9 @@ from flask import (
     g,
 )
 
-from scrapyrealestate.domain.notification import NotificationPreferences
+from scrapyrealestate.domain.notification import NotificationEventType, NotificationPreferences
 from scrapyrealestate.domain.search import NormalizedSearch, SearchFilters
-from scrapyrealestate.domain.values import PropertyType, TransactionType
+from scrapyrealestate.domain.values import PortalKey, PropertyType, TransactionType
 from scrapyrealestate.notifiers.base import NotifierConfigurationError
 from scrapyrealestate.persistence.notifications import NotificationProvider
 from scrapyrealestate.persistence.runs import TriggerKind
@@ -119,6 +119,38 @@ def search_list():
     searches = _searches().list()
     return render_template(
         "searches/list.html", searches=searches, statuses=_statuses(searches)
+    )
+
+
+@ui.get("/listings")
+def listing_list():
+    try:
+        page = _query_integer("page", default=1)
+        search_id = _query_integer("search_id")
+        portal = _query_enum("portal", PortalKey)
+        event_type = _query_enum("event_type", NotificationEventType)
+        active = _query_active()
+        listings = _listings().recent(
+            page=page,
+            search_id=search_id,
+            portal=portal,
+            event_type=event_type,
+            active=active,
+        )
+    except (TypeError, ValueError):
+        abort(400)
+    return render_template(
+        "listings/list.html",
+        listings=listings,
+        searches=_searches().list(),
+        portals=tuple(PortalKey),
+        event_types=tuple(NotificationEventType),
+        selected={
+            "search_id": search_id,
+            "portal": portal,
+            "event_type": event_type,
+            "active": active,
+        },
     )
 
 
@@ -554,6 +586,13 @@ def _notifications():
     return repository
 
 
+def _listings():
+    repository = _repositories().listings
+    if repository is None:
+        abort(503)
+    return repository
+
+
 def _channel_service():
     service = _context().services.notification_configuration
     if service is not None:
@@ -576,6 +615,7 @@ def _repositories():
     if cached is not None:
         return cached
     from scrapyrealestate.flask_server import WebRepositories
+    from scrapyrealestate.persistence.listings import ListingQueryRepository
     from scrapyrealestate.persistence.notifications import NotificationRepository
     from scrapyrealestate.persistence.runs import RunRepository
     from scrapyrealestate.persistence.searches import SearchRepository
@@ -586,6 +626,7 @@ def _repositories():
         searches=SearchRepository(connection),
         runs=RunRepository(connection),
         notifications=NotificationRepository(connection),
+        listings=ListingQueryRepository(connection),
     )
     g.scrapyrealestate_repositories = repositories
     return repositories
@@ -626,3 +667,27 @@ def _safe_validation(error: Exception) -> str:
     if isinstance(error, sqlite3.IntegrityError):
         return "El nombre ya existe o los datos no cumplen las restricciones."
     return str(error)
+
+
+def _query_integer(name: str, *, default: int | None = None) -> int | None:
+    raw = request.args.get(name, "").strip()
+    if not raw:
+        return default
+    value = int(raw)
+    if value < 1:
+        raise ValueError
+    return value
+
+
+def _query_enum(name: str, enum_type):
+    raw = request.args.get(name, "").strip()
+    return enum_type(raw) if raw else None
+
+
+def _query_active() -> bool | None:
+    raw = request.args.get("active", "").strip()
+    if not raw:
+        return None
+    if raw not in {"active", "inactive"}:
+        raise ValueError
+    return raw == "active"
