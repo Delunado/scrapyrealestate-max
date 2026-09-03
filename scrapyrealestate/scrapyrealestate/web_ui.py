@@ -347,6 +347,19 @@ def run_status(run_id: int):
     )
 
 
+@ui.get("/status/portals")
+def portal_health():
+    runs = _repositories().runs
+    if runs is None:
+        abort(503)
+    summaries = {summary.portal: summary for summary in runs.portal_health()}
+    registry = _context().services.portals
+    metadata = tuple(adapter.metadata for adapter in registry) if registry else ()
+    return render_template(
+        "status/portals.html", summaries=summaries, portal_metadata=metadata
+    )
+
+
 @ui.get("/channels")
 def channel_list():
     repository = _notifications()

@@ -258,6 +258,34 @@ def test_run_detail_shows_portal_counts_and_redacted_diagnostic(web_app):
     assert all(label in page for label in ("Devueltos", "Coincidentes", "Nuevos"))
 
 
+def test_portal_health_page_distinguishes_operational_statuses(web_app):
+    app, connection, _trigger, _changes = web_app
+    client = app.test_client()
+    token = _csrf(client)
+    client.post("/searches/new", data=_search_form(csrf_token=token))
+    search_id = SearchRepository(connection).list()[0].id
+    runs = RunRepository(connection)
+    started = datetime(2026, 9, 3, 10, tzinfo=timezone.utc)
+    run = runs.start_run(runs.create_run(search_id, TriggerKind.MANUAL).id, started)
+    for number, status in enumerate(
+        (RunStatus.EMPTY, RunStatus.BLOCKED, RunStatus.PARSER_ERROR), start=1
+    ):
+        attempt = runs.start_attempt(
+            run.id, PortalKey.PISOSCOM, started, attempt_number=number
+        )
+        runs.finish_attempt(attempt.id, status, started)
+
+    response = client.get("/status/portals")
+    page = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "Vacíos correctos" in page
+    assert "Bloqueados" in page
+    assert "Error de parser" in page
+    assert "No disponibles" in page
+    assert "parser_error" in page
+
+
 def test_recent_listings_page_filters_and_rejects_invalid_queries(web_app):
     app, connection, _trigger, _changes = web_app
     listing_id = connection.execute(

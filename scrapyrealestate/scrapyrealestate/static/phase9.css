@@ -7,6 +7,11 @@
 }
 .view-switcher { display: flex; flex-wrap: wrap; gap: .75rem; margin-bottom: 1rem; }
 .diagnostic { color: var(--muted); font-size: .85rem; max-width: 28rem; overflow-wrap: anywhere; }
+.portal-health-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.portal-health-grid h2 { font-size: 1.2rem; margin: .2rem 0; }
+.health-counts { display: grid; gap: .35rem; grid-template-columns: 1fr 1fr; }
+.health-counts div { display: flex; justify-content: space-between; }
+.health-counts dd { font-weight: 700; margin: 0; }
 .listing-list { display: grid; gap: .8rem; }
 .listing-list h2 { font-size: 1.1rem; margin: .1rem 0; }
 .listing-list p { color: var(--muted); margin: .35rem 0; }

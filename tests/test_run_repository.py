@@ -100,3 +100,42 @@ def test_timestamps_are_normalized_to_utc(repository):
     run = runs.create_run(search_id, TriggerKind.SCHEDULED, scheduled_for=madrid_time)
 
     assert run.scheduled_for == "2026-09-02T10:00:00Z"
+
+
+def test_portal_health_counts_recent_status_categories(repository):
+    runs, search_id = repository
+    run = runs.start_run(
+        runs.create_run(search_id, TriggerKind.MANUAL).id, _time()
+    )
+    statuses = (
+        RunStatus.EMPTY,
+        RunStatus.BLOCKED,
+        RunStatus.PARSER_ERROR,
+        RunStatus.UNAVAILABLE,
+    )
+    for number, status in enumerate(statuses, start=1):
+        attempt = runs.start_attempt(
+            run.id,
+            PortalKey.PISOSCOM,
+            _time(number),
+            attempt_number=number,
+        )
+        runs.finish_attempt(attempt.id, status, _time(number + 1))
+
+    health = runs.portal_health()[0]
+
+    assert health.portal is PortalKey.PISOSCOM
+    assert health.sample_size == 4
+    assert health.latest_status == RunStatus.UNAVAILABLE.value
+    assert health.empty_count == 1
+    assert health.blocked_count == 1
+    assert health.parser_error_count == 1
+    assert health.unavailable_count == 1
+    assert health.conclusive_count == 1
+
+
+def test_portal_health_validates_sample_bound(repository):
+    runs, _search_id = repository
+
+    with pytest.raises(ValueError):
+        runs.portal_health(attempts_per_portal=101)

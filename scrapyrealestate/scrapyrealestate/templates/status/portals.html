@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Estado de portales · ScrapyRealEstate{% endblock %}
+{% block content %}
+<div class="page-heading"><div><h1>Estado de portales</h1><p>Resumen de los últimos 20 intentos por portal. Un resultado vacío es una ejecución correcta sin anuncios.</p></div></div>
+<div class="portal-health-grid">
+{% for metadata in portal_metadata %}
+  {% set health = summaries.get(metadata.key) %}
+  <article class="card">
+    <div class="listing-card-heading"><div><span class="eyebrow">{{ metadata.transport.value }}</span><h2>{{ metadata.display_name }}</h2></div>{% if metadata.degraded %}<span class="badge badge-warning">Degradado</span>{% endif %}</div>
+    {% if health %}
+      <p>Último estado: <span class="badge">{{ health.latest_status }}</span><br><span class="muted">{{ health.latest_attempt_at }} · muestra de {{ health.sample_size }}</span></p>
+      <dl class="health-counts">
+        <div><dt>Correctos</dt><dd>{{ health.success_count }}</dd></div>
+        <div><dt>Vacíos correctos</dt><dd>{{ health.empty_count }}</dd></div>
+        <div><dt>Bloqueados</dt><dd>{{ health.blocked_count }}</dd></div>
+        <div><dt>Error de parser</dt><dd>{{ health.parser_error_count }}</dd></div>
+        <div><dt>No disponibles</dt><dd>{{ health.unavailable_count }}</dd></div>
+        <div><dt>Transporte</dt><dd>{{ health.transport_error_count }}</dd></div>
+        <div><dt>Timeout</dt><dd>{{ health.timeout_count }}</dd></div>
+        <div><dt>En curso</dt><dd>{{ health.running_count }}</dd></div>
+      </dl>
+    {% else %}<p class="muted">Sin intentos registrados.</p>{% endif %}
+    {% if metadata.caveats %}<p class="help">{{ metadata.caveats }}</p>{% endif %}
+  </article>
+{% else %}
+  {% for portal, health in summaries.items() %}<article class="card"><h2>{{ portal.value }}</h2><p>Último estado: {{ health.latest_status }}</p></article>{% else %}<div class="empty">Sin intentos registrados.</div>{% endfor %}
+{% endfor %}
+</div>
+{% endblock %}

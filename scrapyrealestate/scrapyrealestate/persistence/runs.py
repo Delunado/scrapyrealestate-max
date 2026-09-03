@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import StrEnum
@@ -74,6 +75,26 @@ class LatestSearchStatus:
     run: SearchRunRecord | None
     attempts: tuple[PortalAttemptRecord, ...]
     next_run_at: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class PortalHealthSummary:
+    portal: PortalKey
+    sample_size: int
+    latest_status: str
+    latest_attempt_at: str
+    success_count: int = 0
+    empty_count: int = 0
+    blocked_count: int = 0
+    parser_error_count: int = 0
+    unavailable_count: int = 0
+    transport_error_count: int = 0
+    timeout_count: int = 0
+    running_count: int = 0
+
+    @property
+    def conclusive_count(self) -> int:
+        return self.success_count + self.empty_count
 
 
 class RunRepository:
@@ -234,6 +255,54 @@ class RunRepository:
             attempts=self.attempts_for_run(run.id) if run is not None else (),
             next_run_at=schedule["next_run_at"] if schedule is not None else None,
         )
+
+    def portal_health(
+        self, *, attempts_per_portal: int = 20
+    ) -> tuple[PortalHealthSummary, ...]:
+        if (
+            isinstance(attempts_per_portal, bool)
+            or not isinstance(attempts_per_portal, int)
+            or not 1 <= attempts_per_portal <= 100
+        ):
+            raise ValueError("attempts_per_portal must be between 1 and 100")
+        rows = self.connection.execute(
+            """
+            SELECT * FROM (
+                SELECT portal_key, status, started_at, id,
+                       row_number() OVER (
+                           PARTITION BY portal_key
+                           ORDER BY datetime(started_at) DESC, id DESC
+                       ) AS recent_rank
+                FROM portal_attempts
+            ) AS recent
+            WHERE recent_rank <= ?
+            ORDER BY portal_key, recent_rank
+            """,
+            (attempts_per_portal,),
+        ).fetchall()
+        grouped: dict[str, list[sqlite3.Row]] = {}
+        for row in rows:
+            grouped.setdefault(row["portal_key"], []).append(row)
+        summaries = []
+        for portal_key, attempts in grouped.items():
+            counts = Counter(row["status"] for row in attempts)
+            summaries.append(
+                PortalHealthSummary(
+                    portal=PortalKey(portal_key),
+                    sample_size=len(attempts),
+                    latest_status=attempts[0]["status"],
+                    latest_attempt_at=attempts[0]["started_at"],
+                    success_count=counts[RunStatus.SUCCESS.value],
+                    empty_count=counts[RunStatus.EMPTY.value],
+                    blocked_count=counts[RunStatus.BLOCKED.value],
+                    parser_error_count=counts[RunStatus.PARSER_ERROR.value],
+                    unavailable_count=counts[RunStatus.UNAVAILABLE.value],
+                    transport_error_count=counts[RunStatus.TRANSPORT_ERROR.value],
+                    timeout_count=counts[RunStatus.TIMEOUT.value],
+                    running_count=counts[SearchRunStatus.RUNNING.value],
+                )
+            )
+        return tuple(summaries)
 
     def _update_run(
         self,
