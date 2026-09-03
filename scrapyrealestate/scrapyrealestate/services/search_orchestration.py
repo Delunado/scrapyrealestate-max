@@ -18,6 +18,7 @@ searches proceed without waiting on each other.
 
 from __future__ import annotations
 
+import logging
 import random
 import time
 from collections.abc import Callable, Mapping
@@ -58,6 +59,7 @@ from scrapyrealestate.services.notification_delivery import (
 
 # Attempt statuses this run's overall status treats as having succeeded.
 _ATTEMPT_OK = frozenset({RunStatus.SUCCESS, RunStatus.EMPTY})
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,6 +101,7 @@ class SearchOrchestrationService:
         sleep: Callable[[float], None] = time.sleep,
         locks: SearchRunLock | None = None,
         notification_delivery: DurableNotificationDispatcher | None = None,
+        retention: Callable[[], object] | None = None,
     ) -> None:
         if inter_portal_delay_seconds < 0:
             raise ValueError("inter_portal_delay_seconds cannot be negative")
@@ -123,6 +126,7 @@ class SearchOrchestrationService:
                 build_default_notifier_registry(),
             )
         )
+        self._retention = retention
 
     def run_search(
         self,
@@ -169,7 +173,16 @@ class SearchOrchestrationService:
             )
 
         run = self._finish_run(run, tuple(outcomes))
+        self._prune_operational_history()
         return SearchRunOutcome(run=run, attempts=tuple(outcomes))
+
+    def _prune_operational_history(self) -> None:
+        if self._retention is None:
+            return
+        try:
+            self._retention()
+        except Exception:  # maintenance must never change a search outcome
+            logger.warning("operational history pruning failed")
 
     def _run_one_portal(
         self,

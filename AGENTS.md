@@ -172,6 +172,10 @@ infrastructure without a concrete requirement and an explicit update to
   stale scheduled dispatch if the search was disabled, and delegates to
   `SearchOrchestrationService`, preserving its per-search overlap guard. The
   scheduler calls this service by search ID rather than invoking a separate path.
+  `services/retention.py` clears old run/attempt diagnostic text and prunes only
+  terminal delivery-attempt rows by age and a hard newest-record cap. It runs at
+  startup and after completed searches; pending/claimed delivery work and listing,
+  match, event, and price history are retained.
   `services/manual_runs.py` launches web-requested manual runs on a managed worker:
   it waits only until orchestration creates the run record, then lets the crawl
   continue while the browser is redirected to status; it shares the same trigger

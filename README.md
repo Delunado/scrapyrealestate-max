@@ -108,6 +108,10 @@ The data directory can contain:
 - `useragent.txt`: Scrapy User-Agent input;
 - `runs/`: unique JSON Lines output for isolated portal attempts.
 
+Operational maintenance clears diagnostic text after 30 days and removes terminal
+delivery-attempt rows after 90 days or above the newest 10,000 records. Pending and
+leased deliveries are retained, as are listing, match, event, and price histories.
+
 ### Configuración y deduplicación
 
 La configuración autoritativa se guarda en SQLite. La deduplicación utiliza la

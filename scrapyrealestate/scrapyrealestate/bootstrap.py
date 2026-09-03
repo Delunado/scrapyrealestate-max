@@ -39,6 +39,7 @@ from scrapyrealestate.portals import build_default_registry
 from scrapyrealestate.runtime import RuntimePaths, get_runtime_paths
 from scrapyrealestate.services.ingestion import IngestionService
 from scrapyrealestate.services.notification_delivery import DurableNotificationDispatcher
+from scrapyrealestate.services.retention import OperationalRetentionService
 from scrapyrealestate.services.manual_runs import ManualSearchRunLauncher
 from scrapyrealestate.services.scheduler import InProcessScheduler
 from scrapyrealestate.services.search_orchestration import SearchOrchestrationService
@@ -159,6 +160,8 @@ def build_application(
             idealista_proxy=_uses_idealista_proxy(connection)
         )
         active_notifier_registry = notifier_registry or build_default_notifier_registry()
+        retention = OperationalRetentionService(connection)
+        retention.prune()
         orchestration = SearchOrchestrationService(
             registry=registry,
             runner=runner,
@@ -169,6 +172,7 @@ def build_application(
                 notifications,
                 active_notifier_registry,
             ),
+            retention=retention.prune,
         )
         trigger = SearchTriggerService(searches, orchestration)
         manual_runs = ManualSearchRunLauncher(trigger)
