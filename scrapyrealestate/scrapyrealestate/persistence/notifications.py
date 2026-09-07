@@ -10,6 +10,13 @@ from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 from typing import Any
 
+from scrapyrealestate.diagnostics import (
+    DELIVERY_ERROR_CATEGORIES,
+    MAX_DIAGNOSTIC_CHARS,
+    MAX_PROVIDER_MESSAGE_ID_CHARS,
+    bounded_status_text,
+    stable_error_category,
+)
 from scrapyrealestate.domain.notification import (
     NotificationEvent,
     NotificationEventType,
@@ -201,7 +208,7 @@ class NotificationRepository:
             (
                 channel_id,
                 int(success),
-                error_category.strip() if error_category else None,
+                _error_category(error_category),
                 _bounded_diagnostic(diagnostic),
                 _timestamp(tested_at),
             ),
@@ -613,6 +620,10 @@ class NotificationRepository:
         elif not error_category or not error_category.strip():
             raise ValueError("failed delivery requires an error category")
         diagnostic = _bounded_diagnostic(diagnostic)
+        error_category = _error_category(error_category)
+        provider_message_id = bounded_status_text(
+            provider_message_id, limit=MAX_PROVIDER_MESSAGE_ID_CHARS
+        )
 
         with transaction(self.connection, immediate=True):
             row = self.connection.execute(
@@ -637,7 +648,7 @@ class NotificationRepository:
                 (
                     status.value,
                     completed,
-                    error_category.strip() if error_category else None,
+                    error_category,
                     diagnostic,
                     provider_message_id,
                     row["id"],
@@ -800,10 +811,11 @@ def _payload_integer(payload: dict[str, Any], key: str, fallback: Any) -> int | 
 
 
 def _bounded_diagnostic(value: str | None) -> str | None:
-    if value is None:
-        return None
-    cleaned = value.strip()
-    return cleaned[:2000] or None
+    return bounded_status_text(value, limit=MAX_DIAGNOSTIC_CHARS)
+
+
+def _error_category(value: str | None) -> str | None:
+    return stable_error_category(value, allowed=DELIVERY_ERROR_CATEGORIES)
 
 
 def _validate_retry_policy(

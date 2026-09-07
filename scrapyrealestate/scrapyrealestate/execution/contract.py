@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from scrapyrealestate.diagnostics import MAX_DIAGNOSTIC_CHARS, bounded_status_text
 from scrapyrealestate.domain.values import PortalKey, RunStatus, TransactionType
 from scrapyrealestate.portals.base import PortalRequest
 
@@ -142,6 +143,11 @@ class PortalRunResult:
         object.__setattr__(self, "items", tuple(self.items))
         if self.status not in CONCLUSIVE_STATUSES and self.items:
             raise ValueError(f"{self.status.value} attempts cannot carry items")
+        object.__setattr__(
+            self,
+            "diagnostic",
+            bounded_status_text(self.diagnostic, limit=MAX_DIAGNOSTIC_CHARS),
+        )
 
     @property
     def duration_seconds(self) -> float:

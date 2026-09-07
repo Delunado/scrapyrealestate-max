@@ -8,6 +8,11 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import StrEnum
 
+from scrapyrealestate.diagnostics import (
+    MAX_DIAGNOSTIC_CHARS,
+    bounded_status_text,
+    stable_error_category,
+)
 from scrapyrealestate.domain.values import PortalKey, RunStatus
 
 
@@ -23,6 +28,21 @@ class SearchRunStatus(StrEnum):
     PARTIAL = "partial"
     FAILED = "failed"
     CANCELLED = "cancelled"
+
+
+RUN_ERROR_CATEGORIES = frozenset(
+    {
+        RunStatus.TIMEOUT.value,
+        RunStatus.TRANSPORT_ERROR.value,
+        RunStatus.PARSER_ERROR.value,
+        RunStatus.BLOCKED.value,
+        RunStatus.UNAVAILABLE.value,
+        SearchRunStatus.PARTIAL.value,
+        SearchRunStatus.FAILED.value,
+        SearchRunStatus.CANCELLED.value,
+        "ingestion_error",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,7 +172,7 @@ class RunRepository:
                 counts.matched,
                 counts.new,
                 counts.changed,
-                error_category,
+                _error_category(error_category),
                 _diagnostic(redacted_diagnostic),
             ),
             allowed_status=SearchRunStatus.RUNNING,
@@ -202,7 +222,7 @@ class RunRepository:
                 counts.matched,
                 counts.new,
                 counts.changed,
-                error_category,
+                _error_category(error_category),
                 _diagnostic(redacted_diagnostic),
                 attempt_id,
             ),
@@ -381,6 +401,8 @@ def _duration(started_at: str | None, finished_at: str | None) -> float | None:
 
 
 def _diagnostic(value: str | None) -> str | None:
-    if value is None:
-        return None
-    return value[:2000]
+    return bounded_status_text(value, limit=MAX_DIAGNOSTIC_CHARS)
+
+
+def _error_category(value: str | None) -> str | None:
+    return stable_error_category(value, allowed=RUN_ERROR_CATEGORIES)

@@ -226,3 +226,18 @@ def test_portal_run_result_to_dict():
         "return_code": 0,
         "diagnostic": None,
     }
+
+
+def test_portal_run_result_bounds_and_flattens_status_diagnostic():
+    result = PortalRunResult(
+        portal=PortalKey.PISOSCOM,
+        status=RunStatus.PARSER_ERROR,
+        started_at=_time(0),
+        finished_at=_time(1),
+        diagnostic="parser\nfailed\x00 " + "x" * 3_000,
+    )
+
+    assert "\n" not in result.diagnostic
+    assert "\x00" not in result.diagnostic
+    assert result.diagnostic.startswith("parser failed")
+    assert len(result.diagnostic) == 2_000

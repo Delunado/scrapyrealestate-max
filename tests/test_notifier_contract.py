@@ -101,6 +101,21 @@ def test_delivery_result_enforces_classified_failures():
         DeliveryResult(False)
 
 
+def test_delivery_result_bounds_status_fields_and_normalizes_provider_categories():
+    failure = DeliveryResult(
+        False,
+        provider_message_id="id\n" + "x" * 500,
+        error_category="provider supplied arbitrary category",
+        diagnostic="failure\r\n" + "y" * 3_000,
+    )
+
+    assert failure.error_category == "provider_error"
+    assert "\n" not in failure.provider_message_id
+    assert len(failure.provider_message_id) == 256
+    assert "\n" not in failure.diagnostic
+    assert len(failure.diagnostic) == 2_000
+
+
 def test_notification_preferences_expose_stable_defaults():
     preferences = NotificationPreferences()
 

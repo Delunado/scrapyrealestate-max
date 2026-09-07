@@ -6,6 +6,13 @@ from dataclasses import dataclass
 from collections.abc import Iterable
 from typing import Protocol
 
+from scrapyrealestate.diagnostics import (
+    DELIVERY_ERROR_CATEGORIES,
+    MAX_DIAGNOSTIC_CHARS,
+    MAX_PROVIDER_MESSAGE_ID_CHARS,
+    bounded_status_text,
+    stable_error_category,
+)
 from scrapyrealestate.domain.notification import NotificationEvent
 from scrapyrealestate.security import redact_secrets
 
@@ -24,10 +31,31 @@ class DeliveryResult:
     diagnostic: str | None = None
 
     def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "provider_message_id",
+            bounded_status_text(
+                self.provider_message_id, limit=MAX_PROVIDER_MESSAGE_ID_CHARS
+            ),
+        )
         if self.success and (self.error_category is not None or self.diagnostic is not None):
             raise ValueError("a successful delivery cannot contain error details")
-        if not self.success and not self.error_category:
+        object.__setattr__(
+            self,
+            "error_category",
+            stable_error_category(
+                self.error_category,
+                allowed=DELIVERY_ERROR_CATEGORIES,
+                fallback="provider_error",
+            ),
+        )
+        if not self.success and self.error_category is None:
             raise ValueError("a failed delivery requires an error category")
+        object.__setattr__(
+            self,
+            "diagnostic",
+            bounded_status_text(self.diagnostic, limit=MAX_DIAGNOSTIC_CHARS),
+        )
 
     @classmethod
     def delivered(cls, provider_message_id: str | None = None) -> DeliveryResult:

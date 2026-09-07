@@ -72,12 +72,25 @@ def test_failed_attempt_exposes_bounded_redacted_error(repository):
         attempt.id,
         RunStatus.BLOCKED,
         _time(1),
-        error_category="challenge",
+        error_category="blocked",
         redacted_diagnostic="x" * 2100,
     )
 
-    assert failed.error_category == "challenge"
+    assert failed.error_category == "blocked"
     assert len(failed.redacted_diagnostic) == 2000
+
+
+def test_run_status_rejects_unstable_error_categories(repository):
+    runs, search_id = repository
+    run = runs.start_run(runs.create_run(search_id, TriggerKind.MANUAL).id, _time())
+
+    with pytest.raises(ValueError, match="unsupported error category"):
+        runs.finish_run(
+            run.id,
+            SearchRunStatus.FAILED,
+            _time(1),
+            error_category="database exploded with arbitrary detail",
+        )
 
 
 def test_invalid_lifecycle_transitions_are_rejected(repository):
