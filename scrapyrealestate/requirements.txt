@@ -10,6 +10,8 @@
 scrapy==2.11.2
 Twisted==24.3.0
 cryptography==42.0.8
+# Binary dependency used by cryptography; pin its Python 3.12 wheel as well.
+cffi==1.16.0
 pyOpenSSL==24.1.0
 service-identity==24.1.0
 parsel==1.9.1

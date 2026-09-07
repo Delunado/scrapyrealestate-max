@@ -73,12 +73,24 @@ docker compose config --quiet
 ```
 
 Live spider checks are opt-in and must run from the inner `scrapyrealestate/`
-directory, where `scrapy.cfg` lives:
+directory, where `scrapy.cfg` lives. The cross-platform runner discovers the
+portals selected by enabled searches, uses fixed non-secret Madrid probes, and
+writes a secret-free summary plus ignored logs/feeds to the configured data
+directory:
+
+```powershell
+$env:SCRAPYREALESTATE_RUN_LIVE_SMOKE = "1"
+python -m scrapyrealestate.live_smoke --timeout-seconds 60
+```
+
+For a single portal, the original Bash helper remains available:
 
 ```bash
 ./test_spider.sh pisoscom
 ./test_spider.sh fotocasa 'https://www.fotocasa.es/...'
 ```
+
+The latest recorded run is [docs/live-smoke-2026-09-07.md](docs/live-smoke-2026-09-07.md).
 
 ## Self-hosted Docker deployment
 
@@ -89,6 +101,7 @@ explicitly stopped, and gives graceful shutdown 30 seconds. `tini` reaps Scrapy 
 Chromium child processes for both Compose and direct image use.
 
 ```powershell
+Copy-Item .env.example .env
 docker compose up --build -d
 docker compose ps
 ```
@@ -125,8 +138,37 @@ database, or a backup archive. No provider token is baked into the image.
 
 ### Backup, restore, update, and rollback
 
-Stop the service before a filesystem-level backup so no writes are in flight, then
-archive the named volume (including any SQLite WAL/SHM files). In PowerShell:
+The application creates an integrity-checked SQLite snapshot before applying any
+pending migration to an existing database. It is stored once as
+`backups/pre-migration-v<old>-to-v<new>.sqlite3`; a fresh database and a database
+already at the current schema do not create one. Startup aborts if that safety copy
+cannot be made or validated.
+
+For a consistent manual SQLite backup, stop the application and run the maintenance
+command from the inner `scrapyrealestate/` directory. An omitted destination creates
+a timestamped file under the configured data directory's `backups/` folder:
+
+```powershell
+python -m scrapyrealestate.maintenance backup D:\secure-backups\scrapyrealestate.sqlite3
+python -m scrapyrealestate.maintenance restore D:\secure-backups\scrapyrealestate.sqlite3 --replace
+```
+
+Restore refuses to overwrite the configured database unless `--replace` is explicit,
+validates both source and restored copies with SQLite's integrity check, and must not
+run alongside the application. In Docker, with the Compose service stopped, the same
+commands can run against its mounted volume:
+
+```powershell
+docker compose run --rm --no-deps --entrypoint python scrapyrealestate `
+  -m scrapyrealestate.maintenance backup
+docker compose run --rm --no-deps --entrypoint python scrapyrealestate `
+  -m scrapyrealestate.maintenance restore `
+  /var/lib/scrapyrealestate/backups/manual-<timestamp>.sqlite3 --replace
+```
+
+Keep an off-volume copy as well. To archive all application state, stop the service
+so no writes are in flight, then archive the named volume (including SQLite files,
+automatic snapshots, and legacy import sources). In PowerShell:
 
 ```powershell
 docker compose stop
@@ -189,6 +231,19 @@ wait for it to return, then inspect `docker compose ps` and start the service ag
 There must be no running service container before the restart and its readiness
 endpoint must return successfully afterwards.
 
+The deterministic container soak is separately opt-in. It builds the image, runs
+three independently scheduled fixture searches for 20 cycles in an isolated volume,
+and checks overlap rejection, SQLite integrity, delivery uniqueness, and process
+cleanup:
+
+```powershell
+$env:SCRAPYREALESTATE_RUN_DOCKER_SOAK = "1"
+python -m pytest tests/test_container_soak.py -m soak
+```
+
+The latest passing result is
+[docs/container-soak-2026-09-07.md](docs/container-soak-2026-09-07.md).
+
 ## Runtime and data
 
 `python main.py` delegates to the persistent bootstrap. Startup creates the data
@@ -203,7 +258,10 @@ The data directory can contain:
   delivery attempts, schedules, and migration state;
 - `config.json` and `ids.json`: preserved legacy import sources;
 - `useragent.txt`: Scrapy User-Agent input;
-- `runs/`: unique JSON Lines output for isolated portal attempts.
+- `runs/`: unique JSON Lines output for isolated portal attempts;
+- `backups/`: manual and automatic pre-migration SQLite snapshots;
+- `live-smoke-report.json` and `test_<portal>.*`: ignored opt-in live-probe results;
+- `soak-report.json`: ignored deterministic soak summary when run in that data directory.
 
 Operational maintenance clears diagnostic text after 30 days and removes terminal
 delivery-attempt rows after 90 days or above the newest 10,000 records. Pending and
@@ -227,13 +285,18 @@ available only to delivery-scoped services.
 | Pisos.com | Scrapy HTTP | Simplest maintained HTML target. |
 | Habitaclia | Scrapy HTTP | Uses the stable detail-URL identifier where available. |
 | Fotocasa | Playwright | Parses embedded initial JSON; site structure may change. |
-| Yaencontre | Playwright | Rendered requests are needed because plain requests can return 403. |
+| Yaencontre | Playwright | Rendered requests are needed because plain requests can return 403; the 2026-09-07 probe found a likely selector/site change, so verify before enabling. |
 | Idealista | Playwright | Degraded; DataDome commonly blocks headless automation. |
 | Idealista proxy | Rotating public proxies | Degraded and inherently unreliable. |
 
 Use respectful intervals (the persisted minimum is five minutes), review each
 portal's terms, and do not treat live portal access as a deterministic regression
 test.
+
+The 2026-09-07 enabled-portal smoke run returned non-empty results for Pisos.com,
+Habitaclia, and Fotocasa. Yaencontre timed out waiting for its rendered card selector;
+this is recorded as `site_change`, while Idealista was not enabled in that deployment
+and retains its explicit degraded status.
 
 ## Credits and license
 

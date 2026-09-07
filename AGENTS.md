@@ -3,9 +3,9 @@
 ## Purpose and current maturity
 
 ScrapyRealEstate monitors Spanish property portals, periodically scrapes configured
-search-result URLs, and notifies a Telegram channel about newly seen listings. The
-current `master` branch now runs the persistent SQLite-backed application and
-scheduler, plus the server-rendered management and operational history UI.
+searches, and routes listing-change events through Telegram, ntfy, or webhooks. The
+current `master` branch runs the persistent SQLite-backed application and scheduler,
+plus the server-rendered management and operational history UI.
 
 Preserve working spiders while evolving the system incrementally. Prefer the
 standard library, Flask/Jinja, Scrapy, Playwright only where necessary, and SQLite.
@@ -34,7 +34,8 @@ infrastructure without a concrete requirement and an explicit update to
 - `scrapyrealestate/scrapy.cfg`: Scrapy project marker. Scrapy commands must run
   from this directory unless `SCRAPY_SETTINGS_MODULE` is set explicitly.
 - `scrapyrealestate/scrapyrealestate/settings.py`: shared Scrapy and Playwright
-  configuration. It reads the current User-Agent from `./data/useragent.txt`.
+  configuration. It reads the current User-Agent from the runtime data directory's
+  `useragent.txt`.
 - `scrapyrealestate/scrapyrealestate/items.py`: current loose Scrapy item contract.
 - `scrapyrealestate/scrapyrealestate/domain/`: normalized value enums, listing and
   search models, Spanish display-value normalization, the transitional legacy item
@@ -42,7 +43,12 @@ infrastructure without a concrete requirement and an explicit update to
 - `scrapyrealestate/scrapyrealestate/persistence/`: configured SQLite connections,
   explicit transactions, ordered migrations, typed repositories for searches,
   listings, prices, runs, and notifications, plus idempotent legacy importers and
-  secret-free migration reports.
+  secret-free migration reports. `persistence/backups.py` provides integrity-checked,
+  atomic SQLite backup/restore and idempotent pre-migration snapshots.
+- `scrapyrealestate/scrapyrealestate/maintenance.py`: stopped-application CLI for
+  manual SQLite backup and explicit restore (`--replace` is required to overwrite).
+- `scrapyrealestate/scrapyrealestate/diagnostics.py`: shared bounds and stable error
+  categories for persisted and rendered operational status.
 - `scrapyrealestate/scrapyrealestate/spiders/`: one spider module per portal plus
   the optional Idealista proxy variant.
 - `scrapyrealestate/scrapyrealestate/portals/`: the `PortalAdapter` interface and
@@ -189,7 +195,7 @@ infrastructure without a concrete requirement and an explicit update to
   the module is never launched as a first-run subprocess.
   `/healthz` is process liveness; `/readyz` uses only an optional injected local
   readiness check and returns a generic response, never portal state or diagnostics.
-- `scrapyrealestate/scrapyrealestate/web_ui.py`: thin Phase 8/9 management routes and
+- `scrapyrealestate/scrapyrealestate/web_ui.py`: thin management routes and
   server-side form parsing for the dashboard, search CRUD/portal coverage/manual
   runs, notification channels, assignments, preferences, and test delivery. Every
   new state-changing form validates a session CSRF token; successful mutations use
@@ -205,6 +211,11 @@ infrastructure without a concrete requirement and an explicit update to
   log and classifies non-empty success, valid empty output, parser failure,
   transport failure, and likely blocking. Live portal behavior is not a
   deterministic regression test.
+- `scrapyrealestate/scrapyrealestate/live_smoke.py`: cross-platform, explicitly
+  enabled live probe runner for portals selected by enabled searches. It records no
+  URLs, filters, listings, or secrets in its JSON report; retained logs are bounded.
+- `scrapyrealestate/scrapyrealestate/soak.py`: deterministic fixture workload used by
+  offline and opt-in container soak tests; it never contacts portals or providers.
 - `Dockerfile`: Python 3.12 image with Chromium and `tini`; it runs as UID/GID
   `10001`, keeps Playwright browsers at `/ms-playwright`, owns its mounted data
   target at `/var/lib/scrapyrealestate`, exposes only port 8080, and healthchecks
@@ -227,7 +238,7 @@ GitHub Actions runs tests, lint, and Compose validation without live portal acce
 Run `python main.py` from the inner `scrapyrealestate/` directory. The process:
 
 1. resolves and creates the configured data directory;
-2. applies ordered SQLite migrations;
+2. snapshots an existing older database, then applies ordered SQLite migrations;
 3. idempotently imports preserved `config.json` and `ids.json` sources when present;
 4. composes repositories, portal adapters, isolated execution, ingestion, durable
    notification delivery, the scheduler, and Flask;
@@ -253,6 +264,9 @@ directory, normally `scrapyrealestate/` locally and
 - `<scrapy_rs_name>.json`: temporary aggregate crawl output;
 - `test_<spider>.json` and `test_<spider>.log`: manual live-test output and the
   retained log used to classify the crawl result.
+- `backups/`: integrity-checked manual and automatic pre-migration SQLite snapshots;
+- `live-smoke-report.json`: secret-free summary from the opt-in enabled-portal probe;
+- `soak-report.json`: deterministic fixture-soak summary.
 
 Legacy `config.json` is loaded and validated as typed configuration by
 `scrapyrealestate/legacy_config.py`. Current JSON keys are `scrapy_rs_name`, `log_level`,
@@ -272,7 +286,7 @@ path in `TASKS.md` exist. Import must be idempotent, preserve source files, and
 record ambiguity: legacy IDs cannot always be assigned to a portal because
 `ids.json` has no portal field.
 
-The target persistent path is one configurable data directory containing the
+The persistent path is one configurable data directory containing the
 SQLite database and any non-database runtime files, mounted into Docker. Resolve it
 through one path/configuration module rather than adding new `./data` literals.
 SQLite changes must use ordered, transactional, forward-only migrations tracked in
@@ -295,7 +309,7 @@ code.
 | Pisos.com | `pisoscom` | normal Scrapy HTTP | HTML/CSS selectors; currently considered the simplest maintained target. |
 | Habitaclia | `habitaclia` | normal Scrapy HTTP | HTML/CSS selectors; prefers the stable `-i<id>` detail-URL identifier and uses a numeric canonical-URL fingerprint only when that marker is absent. |
 | Fotocasa | `fotocasa` | Playwright/Chromium | Parses `script#__initial_props__`; wait/JSON structure may change. |
-| Yaencontre | `yaencontre` | Playwright/Chromium | Plain requests have returned 403; relies on rendered card selectors. |
+| Yaencontre | `yaencontre` | Playwright/Chromium | Plain requests have returned 403; the 2026-09-07 live probe timed out on its rendered card selector and was classified as a likely site change. |
 | Idealista | `idealista` | Playwright/Chromium | DataDome commonly blocks headless automation; treat as externally unreliable. |
 | Idealista proxy | `idealista_proxy` | Scrapy HTTP + public rotating proxies | Public proxy discovery is slow/unreliable and is not a supported anti-bot guarantee. |
 
@@ -510,16 +524,14 @@ micro-modules:
 - web: Flask routes/forms/templates with no scraping or SQL details;
 - bootstrap: configuration, lifecycle, and graceful shutdown only.
 
-Do not grow `main.py` or replace it with another monolith. During migration, add new
-components beside the legacy flow, cover them with tests, then switch the entrypoint
-in one explicit task.
+Do not grow `main.py` or replace the composed bootstrap with another monolith.
 
 ## Web, scheduler, and notifier conventions
 
-The current Flask server is not persistent and is not a production server. The
-target is one long-lived server-rendered Flask/Jinja application in the same main
-service as a lightweight in-process scheduler. Keep route handlers thin and use
-Post/Redirect/Get for mutations. State-changing forms require CSRF protection.
+The current server is one long-lived server-rendered Flask/Jinja application under
+Waitress in the same main service as the lightweight in-process scheduler. Keep
+route handlers thin and use Post/Redirect/Get for mutations. State-changing forms
+require CSRF protection.
 
 Scheduler state and run history belong in SQLite. Prevent overlapping runs per
 search, isolate every portal attempt, use explicit timeouts, and continue after one
@@ -563,6 +575,9 @@ docker compose config --quiet
 
 # Opt-in only: builds Compose and verifies persistent data after recreation
 SCRAPYREALESTATE_RUN_DOCKER_SMOKE=1 python -m pytest -m deployment
+
+# Opt-in only: deterministic fixture workload inside the built image
+SCRAPYREALESTATE_RUN_DOCKER_SOAK=1 python -m pytest -m soak
 ```
 
 Run an individual live spider from `scrapyrealestate/`:
@@ -570,6 +585,12 @@ Run an individual live spider from `scrapyrealestate/`:
 ```bash
 ./test_spider.sh pisoscom
 ./test_spider.sh fotocasa 'https://www.fotocasa.es/...'
+```
+
+Or run fixed, secret-free probes for every portal selected by an enabled search:
+
+```bash
+SCRAPYREALESTATE_RUN_LIVE_SMOKE=1 python -m scrapyrealestate.live_smoke
 ```
 
 In the current container:
@@ -633,8 +654,8 @@ or local editor files.
   while live checks diagnose external drift.
 - Idealista/DataDome is a known unreliable target. Do not make overall health depend
   on it and do not interpret blocking as an application regression.
-- Listing IDs are not globally unique today. The SQLite identity must include the
-  portal, and legacy unscoped IDs need conservative import semantics.
+- Listing IDs are portal-scoped in SQLite. Legacy `ids.json` values remain unscoped
+  and therefore retain conservative import/suppression semantics.
 - Habitaclia normally exposes a stable ID in its detail URL. Unusual URLs without
   the `-i<id>` marker fall back to a deterministic 63-bit fingerprint of the
   canonical URL without its query or fragment; this remains a conservative legacy
@@ -642,11 +663,16 @@ or local editor files.
 - A zero-result crawl may mean no listings, a selector regression, timeout, 403, or
   anti-bot challenge. Execution records must distinguish these cases where evidence
   permits.
-- Current raw URL suffix concatenation can duplicate slashes or query strings. URL
-  construction belongs in adapters and requires tests.
+- Raw URL overrides remain compatibility inputs; adapter validation and fixture-backed
+  recent-sort construction must stay portal-specific.
 - SQLite listing ingestion and event creation (`services/ingestion.py`) are
   transactional, and eligible events create durable delivery attempts in that same
   transaction. Provider delivery/retry is isolated from portal run status.
+- Existing databases are backed up once before forward migrations. Backup files
+  contain notification credentials and must be protected like the primary volume.
+- The 2026-09-07 enabled-portal live probe succeeded for Pisos.com, Habitaclia, and
+  Fotocasa; Yaencontre was classified `site_change` after its rendered-card selector
+  timed out. Idealista was not enabled for that probe and remains degraded.
 - User-facing README, template, and runtime text is UTF-8 and has encoding regression
   coverage. Keep new text UTF-8 and do not mix broad wording cleanup into unrelated
   behavior tasks.
