@@ -4,8 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     image: scrapyrealestate:local
-    container_name: scrapyrealestate
-    restart: always
+    restart: unless-stopped
     init: true
     ports:
       - "${SCRAPYREALESTATE_WEB_PORT:-8080}:8080"
@@ -13,6 +12,13 @@ services:
       SCRAPYREALESTATE_DATA_DIR: /var/lib/scrapyrealestate
     volumes:
       - scrapyrealestate-data:/var/lib/scrapyrealestate
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://127.0.0.1:8080/readyz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
 
 volumes:
   scrapyrealestate-data:
