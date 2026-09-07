@@ -54,6 +54,10 @@ class RuntimePaths:
     def database_file(self) -> Path:
         return self.data_dir / "scrapyrealestate.sqlite3"
 
+    @property
+    def backup_dir(self) -> Path:
+        return self.data_dir / "backups"
+
     def crawl_output(self, instance_name: str) -> Path:
         return self.data_dir / f"{instance_name}.json"
 

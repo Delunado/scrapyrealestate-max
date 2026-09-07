@@ -23,6 +23,7 @@ from scrapyrealestate.flask_server import (
     create_app,
 )
 from scrapyrealestate.persistence.database import Database
+from scrapyrealestate.persistence.backups import create_pre_migration_backup
 from scrapyrealestate.persistence.duplicates import DuplicateCandidateRepository
 from scrapyrealestate.persistence.legacy_import import LegacyConfigImporter
 from scrapyrealestate.persistence.legacy_seen import LegacySeenRepository
@@ -64,6 +65,7 @@ class ApplicationServer(Protocol):
 @dataclass(frozen=True, slots=True)
 class BootstrapReport:
     schema_version: int
+    pre_migration_backup: Path | None = None
     config_imported: bool = False
     ids_imported: bool = False
     import_warnings: tuple[str, ...] = ()
@@ -155,14 +157,27 @@ def build_application(
     """Migrate/import once and compose the persistent web/scheduler runtime."""
     paths = runtime_paths or get_runtime_paths()
     paths.ensure_data_dir()
+    database_existed = paths.database_file.is_file() and paths.database_file.stat().st_size > 0
     database = Database(paths.database_file)
     # This dedicated connection is used by the scheduler worker after bootstrap.
     # Web readiness opens a short independent connection instead of sharing it.
     connection = database.connect(check_same_thread=False)
     duplicate_candidates: DuplicateCandidateWorker | None = None
     try:
+        pre_migration_backup = None
+        if database_existed:
+            pre_migration_backup = create_pre_migration_backup(
+                connection,
+                paths.backup_dir,
+                target_version=len(MIGRATIONS),
+            )
         schema_version = MigrationRunner(MIGRATIONS).migrate(connection)
-        report = _import_legacy_sources(connection, paths, schema_version)
+        report = _import_legacy_sources(
+            connection,
+            paths,
+            schema_version,
+            pre_migration_backup=pre_migration_backup,
+        )
         searches = SearchRepository(connection)
         runs = RunRepository(connection)
         notifications = NotificationRepository(connection)
@@ -241,6 +256,8 @@ def _import_legacy_sources(
     connection: sqlite3.Connection,
     paths: RuntimePaths,
     schema_version: int,
+    *,
+    pre_migration_backup: Path | None = None,
 ) -> BootstrapReport:
     config_imported = False
     ids_imported = False
@@ -263,6 +280,7 @@ def _import_legacy_sources(
             warnings.append("legacy ID import was skipped")
     return BootstrapReport(
         schema_version=schema_version,
+        pre_migration_backup=pre_migration_backup,
         config_imported=config_imported,
         ids_imported=ids_imported,
         import_warnings=tuple(warnings),
