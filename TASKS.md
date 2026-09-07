@@ -184,7 +184,7 @@ than code complexity.
 - [x] **Medium** — Add failure-injection tests for corrupted legacy files, migration rollback, locked SQLite, killed spider subprocesses, malformed portal output, notifier timeouts, and restart recovery.
 - [x] **Easy** — Review logs and status payloads for actionable context, bounded size, stable error categories, and comprehensive secret redaction.
 - [x] **Medium** — Establish and test database backup/restore and pre-migration backup behavior against representative legacy and current data.
-- [ ] **Externally unreliable** — Run and record opt-in live smoke tests for each enabled portal, classifying failures as application, parser, site change, or blocking.
+- [x] **Externally unreliable** — Run and record opt-in live smoke tests for each enabled portal, classifying failures as application, parser, site change, or blocking.
 - [ ] **Medium** — Run a container soak test across multiple independently scheduled fixture searches and verify no overlapping runs, database corruption, duplicate notifications, or orphan processes.
 - [ ] **Easy** — Reconcile `AGENTS.md`, `TASKS.md`, README, configuration examples, portal status, and commands with the shipped architecture.
 - [ ] **Easy** — Publish a migration/release checklist with known breaking changes, limitations, supported upgrade path, and rollback instructions.

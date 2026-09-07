@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from scrapyrealestate.live_spider_result import ResultKind, classify_crawl
+from scrapyrealestate.live_spider_result import FailureClass, ResultKind, classify_crawl
 
 
 @pytest.mark.parametrize(
@@ -80,3 +80,21 @@ def test_classify_missing_or_invalid_feed_as_parser_failure(
     result = classify_crawl(output, "Spider closed (finished)", 0)
 
     assert result.kind is ResultKind.PARSER_FAILURE
+    assert result.failure_class is FailureClass.PARSER
+
+
+@pytest.mark.parametrize(
+    ("log_text", "expected"),
+    [
+        ("ModuleNotFoundError: No module named '_cffi_backend'", FailureClass.APPLICATION),
+        ("Error: EPERM: operation not permitted", FailureClass.APPLICATION),
+        ("waiting for locator article.real-estate-card", FailureClass.SITE_CHANGE),
+        ("response_status_count/403: 1", FailureClass.BLOCKING),
+        ("downloader/exception_type_count/DNSLookupError", FailureClass.TRANSPORT),
+    ],
+)
+def test_live_failures_have_release_report_categories(tmp_path, log_text, expected):
+    output = tmp_path / "result.json"
+    output.write_text("[]", encoding="utf-8")
+
+    assert classify_crawl(output, log_text, 1).failure_class is expected

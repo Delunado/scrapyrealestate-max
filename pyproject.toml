@@ -4,6 +4,7 @@ pythonpath = ["scrapyrealestate"]
 testpaths = ["tests"]
 markers = [
     "deployment: opt-in Docker Compose deployment smoke test",
+    "live: opt-in tests that make real portal requests",
 ]
 
 [tool.ruff]
