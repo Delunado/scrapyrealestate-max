@@ -77,7 +77,13 @@ def test_upsert_updates_evidence_without_duplicating_membership_history(candidat
 
 def test_review_state_and_rejection_are_durable(candidates):
     repository, _connection, first, second, _same_portal = candidates
-    group = repository.upsert_pair(first, second, score=0.92, reasons=[{"code": "match"}])
+    group = repository.upsert_pair(
+        first,
+        second,
+        score=0.92,
+        reasons=[{"code": "match"}],
+        observed_at=NOW,
+    )
 
     rejected = repository.set_review_state(
         group.id, DuplicateReviewState.REJECTED, reviewed_at=NOW

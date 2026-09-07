@@ -2,12 +2,14 @@
 
 from typing import ClassVar
 
+from scrapyrealestate.domain.capabilities import SearchFilterKey
+from scrapyrealestate.domain.search import NormalizedSearch
 from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.portals.base import (
-    ALL_LOCAL_CAPABILITIES,
     BasePortalAdapter,
     PortalMetadata,
     PortalTransport,
+    remote_capabilities,
 )
 from scrapyrealestate.spiders.yaencontre_spider import YaencontreSpider
 
@@ -22,7 +24,7 @@ class YaencontreAdapter(BasePortalAdapter):
         spider_name=YaencontreSpider.name,
         transaction_types=frozenset({TransactionType.BUY, TransactionType.RENT}),
         transport=PortalTransport.PLAYWRIGHT,
-        capabilities=ALL_LOCAL_CAPABILITIES,
+        capabilities=remote_capabilities(SearchFilterKey.LOCATION),
         caveats=(
             "Plain requests have returned 403; relies on rendered "
             "article.real-estate-card selectors."
@@ -30,7 +32,7 @@ class YaencontreAdapter(BasePortalAdapter):
     )
 
     _TRANSACTION_SEGMENTS: ClassVar[dict[TransactionType, str]] = {
-        TransactionType.BUY: "comprar",
+        TransactionType.BUY: "venta",
         TransactionType.RENT: "alquiler",
     }
 
@@ -47,9 +49,9 @@ class YaencontreAdapter(BasePortalAdapter):
         # Matches the legacy suffix in main.py.
         return f"{raw_url}/o-recientes"
 
-    def _build_search_url(self, transaction_type: TransactionType, location_slug: str) -> str:
+    def _build_search_url(self, search: NormalizedSearch, location_slug: str) -> str:
         # e.g. https://www.yaencontre.com/comprar/pisos/madrid, matching the
         # "<segment>/pisos/<location>" shape used by every raw search URL
         # fixture in this codebase.
-        segment = self._TRANSACTION_SEGMENTS[transaction_type]
+        segment = self._TRANSACTION_SEGMENTS[search.transaction_type]
         return f"https://www.yaencontre.com/{segment}/pisos/{location_slug}"

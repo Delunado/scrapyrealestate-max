@@ -100,3 +100,22 @@ def test_every_fotocasa_result_satisfies_normalized_boundary(load_fixture):
     assert normalized[0].floor == 2
     assert normalized[1].external_id == "promo-13579"
     assert normalized[1].canonical_url is None
+
+
+def test_fotocasa_follows_next_page_with_playwright(load_fixture):
+    next_url = "https://www.fotocasa.es/es/comprar/viviendas/madrid-capital/l/2"
+    html = load_fixture("fotocasa/search_results.html").replace(
+        "<body>", f'<body><link rel="next" href="{next_url}">'
+    )
+    response = HtmlResponse(
+        url=SEARCH_URL,
+        request=Request(SEARCH_URL),
+        body=html.encode(),
+        encoding="utf-8",
+    )
+
+    outputs = list(FotocasaSpider(start_urls=SEARCH_URL).parse(response))
+    next_request = outputs[-1]
+
+    assert next_request.url == next_url
+    assert next_request.meta["playwright"] is True

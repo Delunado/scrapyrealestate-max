@@ -383,6 +383,14 @@ def test_run_detail_shows_portal_counts_and_redacted_diagnostic(web_app):
     assert "safe run summary" in page
     assert all(label in page for label in ("Devueltos", "Coincidentes", "Nuevos"))
 
+    searches_page = client.get("/searches").get_data(as_text=True)
+    assert f'href="/runs/{run.id}"' in searches_page
+    assert "Devueltos 7" in searches_page
+    assert "Coincidentes 5" in searches_page
+    assert "Nuevos 2" in searches_page
+    assert "Cambiados 1" in searches_page
+    assert "fotocasa: parser_error · 7/5/2/1 · parser_error" in searches_page
+
 
 def test_portal_health_page_distinguishes_operational_statuses(web_app):
     app, connection, _trigger, _changes = web_app

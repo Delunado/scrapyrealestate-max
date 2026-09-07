@@ -1,14 +1,17 @@
 """Pisos.com adapter around the existing ``pisoscom`` spider."""
 
+import math
 from typing import ClassVar
 from urllib.parse import urlsplit
 
+from scrapyrealestate.domain.capabilities import SearchFilterKey
+from scrapyrealestate.domain.search import NormalizedSearch
 from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.portals.base import (
-    ALL_LOCAL_CAPABILITIES,
     BasePortalAdapter,
     PortalMetadata,
     PortalTransport,
+    remote_capabilities,
 )
 from scrapyrealestate.spiders.pisoscom_spider import PisoscomSpider
 
@@ -23,7 +26,13 @@ class PisoscomAdapter(BasePortalAdapter):
         spider_name=PisoscomSpider.name,
         transaction_types=frozenset({TransactionType.BUY, TransactionType.RENT}),
         transport=PortalTransport.HTTP,
-        capabilities=ALL_LOCAL_CAPABILITIES,
+        capabilities=remote_capabilities(
+            SearchFilterKey.LOCATION,
+            SearchFilterKey.MIN_PRICE_EUROS,
+            SearchFilterKey.MAX_PRICE_EUROS,
+            SearchFilterKey.MIN_AREA_SQM,
+            SearchFilterKey.MIN_ROOMS,
+        ),
         caveats=(
             "HTML/CSS selectors; currently considered the simplest maintained "
             "target."
@@ -51,8 +60,21 @@ class PisoscomAdapter(BasePortalAdapter):
         # already end in "/".
         return f"{raw_url}fecharecientedesde-desc/"
 
-    def _build_search_url(self, transaction_type: TransactionType, location_slug: str) -> str:
-        # e.g. https://www.pisos.com/venta/pisos-madrid/, mirroring the
-        # "pisos-<location>" segment used by every raw search URL fixture.
-        segment = self._TRANSACTION_SEGMENTS[transaction_type]
-        return f"https://www.pisos.com/{segment}/pisos-{location_slug}/"
+    def _build_search_url(self, search: NormalizedSearch, location_slug: str) -> str:
+        # Pisos.com otherwise interprets the ambiguous `pisos-malaga` path as
+        # the whole province. Its municipality taxonomy uses this explicit slug.
+        location_slug = {"malaga": "malaga_capital_zona_urbana"}.get(
+            location_slug, location_slug
+        )
+        segment = self._TRANSACTION_SEGMENTS[search.transaction_type]
+        parts = [f"https://www.pisos.com/{segment}/pisos-{location_slug}"]
+        filters = search.filters
+        if filters.min_price_euros is not None:
+            parts.append(f"desde-{filters.min_price_euros}")
+        if filters.max_price_euros is not None:
+            parts.append(f"hasta-{filters.max_price_euros}")
+        if filters.min_rooms is not None:
+            parts.append(f"con-{filters.min_rooms}-habitaciones")
+        if filters.min_area_sqm is not None:
+            parts.append(f"desde-{math.floor(filters.min_area_sqm)}-m2")
+        return "/".join(parts) + "/"

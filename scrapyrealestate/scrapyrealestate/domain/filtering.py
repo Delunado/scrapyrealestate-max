@@ -1,5 +1,6 @@
 """Deterministic local evaluation of normalized search filters."""
 
+import re
 import unicodedata
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -78,7 +79,7 @@ def _filter_checks(
     _range_checks(checks, "floor", listing.floor, filters.min_floor, filters.max_floor)
 
     if filters.location is not None:
-        checks["location"] = _text_match(listing.location, filters.location)
+        checks["location"] = _municipality_match(listing.location, filters.location)
     if filters.neighbourhood is not None:
         checks["neighbourhood"] = _text_match(
             listing.neighbourhood, filters.neighbourhood
@@ -132,6 +133,35 @@ def _text_match(actual: str | None, expected: str) -> FilterOutcome:
     if actual is None:
         return FilterOutcome.UNKNOWN
     return FilterOutcome.MATCH if _fold(actual) == _fold(expected) else FilterOutcome.NO_MATCH
+
+
+def _municipality_match(actual: str | None, expected: str) -> FilterOutcome:
+    """Match municipality labels without broad substring matching.
+
+    Portals commonly add ``Capital`` or repeat the province in parentheses.
+    Removing only those presentational wrappers lets ``Málaga Capital`` match
+    ``Málaga`` while keeping municipalities such as ``Vélez-Málaga`` distinct.
+    """
+    if actual is None:
+        return FilterOutcome.UNKNOWN
+    return (
+        FilterOutcome.MATCH
+        if _municipality_key(actual) == _municipality_key(expected)
+        else FilterOutcome.NO_MATCH
+    )
+
+
+def _municipality_key(value: str) -> str:
+    folded = _fold(value)
+    folded = re.sub(r"^(?:municipio|ciudad) de\s+", "", folded)
+    folded = re.sub(r"\s+capital$", "", folded)
+    parenthetical = re.fullmatch(r"(.+?)\s*\(([^()]*)\)", folded)
+    if parenthetical:
+        folded = parenthetical.group(1).strip()
+    comma_parts = [part.strip() for part in folded.split(",")]
+    if len(comma_parts) == 2 and comma_parts[0] == comma_parts[1]:
+        folded = comma_parts[0]
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", folded).split())
 
 
 def _amenity_match(actual: TriState, expected: bool) -> FilterOutcome:

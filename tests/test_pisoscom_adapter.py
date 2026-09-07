@@ -2,6 +2,7 @@ import pytest
 from scrapy.http import HtmlResponse, Request
 
 from scrapyrealestate.domain.legacy_mapper import map_legacy_item
+from scrapyrealestate.domain.capabilities import FilterSupport, SearchFilterKey
 from scrapyrealestate.domain.search import NormalizedSearch, SearchFilters
 from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.portals.base import PortalRequest, PortalRequestError, PortalTransport
@@ -18,6 +19,10 @@ def test_pisoscom_metadata_declares_identity_and_transport():
     assert metadata.transport is PortalTransport.HTTP
     assert metadata.requires_browser is False
     assert metadata.degraded is False
+    assert metadata.capabilities.support_for(SearchFilterKey.MAX_PRICE_EUROS) is FilterSupport.REMOTE
+    assert metadata.capabilities.support_for(SearchFilterKey.MIN_ROOMS) is FilterSupport.REMOTE
+    assert metadata.capabilities.support_for(SearchFilterKey.MAX_ROOMS) is FilterSupport.LOCAL
+    assert metadata.capabilities.support_for(SearchFilterKey.MAX_AREA_SQM) is FilterSupport.LOCAL
 
 
 @pytest.mark.parametrize(
@@ -92,6 +97,32 @@ def test_pisoscom_build_request_from_search_slugifies_accented_multi_word_locati
     assert request.start_url == (
         "https://www.pisos.com/venta/pisos-alcala-de-henares/fecharecientedesde-desc/"
     )
+
+
+def test_pisoscom_builds_malaga_municipality_url_with_verified_remote_filters():
+    search = NormalizedSearch(
+        name="Málaga",
+        transaction_type=TransactionType.BUY,
+        filters=SearchFilters(
+            location="Málaga",
+            min_price_euros=200_000,
+            max_price_euros=400_000,
+            min_rooms=3,
+            max_rooms=4,
+            min_area_sqm=80,
+            max_area_sqm=120,
+        ),
+    )
+
+    request = PisoscomAdapter().build_request_from_search(search)
+
+    assert request.start_url == (
+        "https://www.pisos.com/venta/pisos-malaga_capital_zona_urbana/"
+        "desde-200000/hasta-400000/con-3-habitaciones/desde-80-m2/"
+        "fecharecientedesde-desc/"
+    )
+    # Pisos.com has no maximum-room URL filter; it remains a local fallback.
+    assert "max_rooms" not in request.start_url
 
 
 def test_pisoscom_build_request_from_search_requires_a_location():

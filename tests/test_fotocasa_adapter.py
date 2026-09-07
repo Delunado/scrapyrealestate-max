@@ -26,13 +26,13 @@ def test_fotocasa_metadata_declares_identity_and_playwright_transport():
         ("https://www.fotocasa.es/es/alquiler/viviendas/madrid-capital/l", TransactionType.RENT),
     ],
 )
-def test_fotocasa_build_request_leaves_url_unchanged(raw_url, expected_type):
+def test_fotocasa_build_request_applies_recent_sort(raw_url, expected_type):
     request = FotocasaAdapter().build_request(raw_url)
 
     assert request == PortalRequest(
         portal=PortalKey.FOTOCASA,
         spider_name="fotocasa",
-        start_url=raw_url,
+        start_url=f"{raw_url}?sortType=publicationDate&sortOrderDesc=true",
         transaction_type=expected_type,
         raw_url=raw_url,
     )
@@ -53,8 +53,16 @@ def test_fotocasa_build_request_rejects_unknown_transaction_section():
 @pytest.mark.parametrize(
     ("transaction_type", "expected_url"),
     [
-        (TransactionType.BUY, "https://www.fotocasa.es/es/comprar/viviendas/madrid/l"),
-        (TransactionType.RENT, "https://www.fotocasa.es/es/alquiler/viviendas/madrid/l"),
+        (
+            TransactionType.BUY,
+            "https://www.fotocasa.es/es/comprar/viviendas/madrid-capital/"
+            "todas-las-zonas/l/1",
+        ),
+        (
+            TransactionType.RENT,
+            "https://www.fotocasa.es/es/alquiler/viviendas/madrid-capital/"
+            "todas-las-zonas/l/1",
+        ),
     ],
 )
 def test_fotocasa_builds_request_from_normalized_search(transaction_type, expected_url):
@@ -69,9 +77,34 @@ def test_fotocasa_builds_request_from_normalized_search(transaction_type, expect
     assert request == PortalRequest(
         portal=PortalKey.FOTOCASA,
         spider_name="fotocasa",
-        start_url=expected_url,
+        start_url=f"{expected_url}?sortType=publicationDate&sortOrderDesc=true",
         transaction_type=transaction_type,
         raw_url=expected_url,
+    )
+
+
+def test_fotocasa_builds_malaga_url_with_remote_range_filters():
+    search = NormalizedSearch(
+        name="Málaga",
+        transaction_type=TransactionType.BUY,
+        filters=SearchFilters(
+            location="Málaga",
+            min_price_euros=200_000,
+            max_price_euros=400_000,
+            min_area_sqm=80,
+            max_area_sqm=120,
+            min_rooms=2,
+            max_rooms=4,
+        ),
+    )
+
+    request = FotocasaAdapter().build_request_from_search(search)
+
+    assert request.start_url == (
+        "https://www.fotocasa.es/es/comprar/viviendas/malaga-capital/"
+        "todas-las-zonas/l/1?minPrice=200000&maxPrice=400000&minSurface=80&"
+        "maxSurface=120&minRooms=2&maxRooms=4&sortType=publicationDate&"
+        "sortOrderDesc=true"
     )
 
 

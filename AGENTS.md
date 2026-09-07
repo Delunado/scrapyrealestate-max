@@ -321,6 +321,14 @@ Fotocasa and Yaencontre require the asyncio reactor and Playwright download hand
 in `settings.py`. Keep Playwright opt-in through request metadata for browser portals;
 do not make normal HTML spiders launch Chromium.
 
+All portal spiders use `spiders.pagination.BoundedPaginationMixin`. They follow a
+portal-specific next-page link in recent-first order and stop at the first of: no
+next link, `SCRAPYREALESTATE_PAGE_LIMIT` pages (default 5, hard maximum 20), or
+`SCRAPYREALESTATE_RESULT_LIMIT` unique items (default 150, hard maximum 600).
+Spider arguments with the same short names override the environment for live tests.
+Keep these limits per attempt; do not move pagination into orchestration or weaken
+the existing per-search overlap lock.
+
 The current item fields are `id`, `price`, `m2`, `rooms`, `floor`, `town`,
 `neighbour`, `street`, `number`, `type`, `title`, `href`, `site`, and declared but
 usually unset `post_time`. Values are mostly display strings and may be missing,
@@ -355,9 +363,10 @@ the browser requirement), operational caveats, a `degraded` flag for portals wit
 no anti-bot bypass guarantee, and `FilterCapabilities`. `BasePortalAdapter` shares
 domain/transaction validation and recent-sort URL construction so each concrete
 adapter only supplies metadata plus its two portal-specific hooks; it also
-delegates result normalization to `map_legacy_item`. Until per-portal remote URL
-filter encoding exists (a later `TASKS.md` item), every adapter declares
-`ALL_LOCAL_CAPABILITIES` rather than guessing ahead of an actual request builder.
+delegates result normalization to `map_legacy_item`. Adapters use
+`remote_capabilities(...)` only for filters their generated normalized-search URL
+actually encodes; every other filter remains locally classified and all returned
+items still pass through local evaluation.
 
 `portals/registry.py` provides `PortalRegistry` for lookup by stable key
 (`get`) or normalized hostname (`get_by_hostname`, case-insensitive and
@@ -398,12 +407,12 @@ pre-existing raw URL: it validates the search's transaction type against
 `metadata.transaction_types`, requires a non-empty `filters.location`, slugifies
 it with `portals.location.slugify_location` (a best-effort, accent-stripping,
 hyphenating transform — accurate for a plain municipality name, not for
-portal-specific taxonomy codes such as Fotocasa's provincial-capital
-`<city>-capital` slugs), and delegates the fixed URL template to each adapter's
-`_build_search_url(transaction_type, location_slug)` hook. Only `location` is
-encoded remotely this way; every filter, including location once results come
-back, still goes through local evaluation, so an imprecise slug degrades to a
-smaller/larger local-filtered result set rather than a silently wrong one. An
+portal-specific taxonomy codes), and delegates taxonomy plus verified native
+filter encoding to each adapter's `_build_search_url(search, location_slug)`
+hook. Pisos.com maps Málaga explicitly to its municipality path instead of the
+province-wide slug; Fotocasa maps known capital slugs and encodes its verified
+price, area, and room ranges. Every returned item still goes through local
+evaluation, so remote filtering never replaces validation. An
 adapter that has not implemented `_build_search_url` raises `PortalRequestError`
 explicitly (the shared default) instead of guessing.
 
@@ -442,7 +451,7 @@ Every portal integration is one `PortalAdapter` (in practice, one
 - `_apply_recent_sort(raw_url) -> str` — return the most-recent-first URL,
   matching (or, where documented, deliberately fixing — see Pisos.com's
   double-slash fix) the legacy suffix.
-- `_build_search_url(transaction_type, location_slug) -> str` *(optional)* —
+- `_build_search_url(search, location_slug) -> str` *(optional)* —
   override to support `build_request_from_search`; the shared default raises
   `PortalRequestError` explicitly for adapters that do not (see Idealista).
 - `build_request(raw_url)`, `normalize_result(item)`, and

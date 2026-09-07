@@ -53,7 +53,7 @@ def test_habitaclia_build_request_rejects_unknown_transaction_section():
     [
         (
             TransactionType.BUY,
-            "https://www.habitaclia.com/venta-madrid.htm?ordenar=mas_recientes",
+            "https://www.habitaclia.com/viviendas-madrid.htm?ordenar=mas_recientes",
         ),
         (
             TransactionType.RENT,
@@ -84,6 +84,14 @@ def test_habitaclia_build_request_from_search_requires_a_location():
 
     with pytest.raises(PortalRequestError, match="location filter is required"):
         HabitacliaAdapter().build_request_from_search(search)
+
+
+def test_habitaclia_current_sale_url_is_recognized():
+    request = HabitacliaAdapter().build_request(
+        "https://www.habitaclia.com/viviendas-malaga.htm"
+    )
+
+    assert request.transaction_type is TransactionType.BUY
 
 
 SEARCH_URL = "https://www.habitaclia.com/alquiler-madrid.htm?ordenar=mas_recientes"

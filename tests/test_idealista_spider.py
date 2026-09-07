@@ -77,3 +77,40 @@ def test_idealista_proxy_uses_its_own_portal_identity(load_fixture):
     assert all(
         map_legacy_item(item).portal is PortalKey.IDEALISTA_PROXY for item in items
     )
+
+
+def test_idealista_follows_next_page_with_playwright(load_fixture):
+    next_url = "https://www.idealista.com/alquiler-viviendas/madrid-madrid/pagina-2.htm"
+    html = load_fixture("idealista/search_results.html").replace(
+        "</body>", f'<a rel="next" href="{next_url}">Siguiente</a></body>'
+    )
+    response = HtmlResponse(
+        url=SEARCH_URL,
+        request=Request(SEARCH_URL),
+        body=html.encode(),
+        encoding="utf-8",
+    )
+
+    outputs = list(IdealistaSpider(start_urls=SEARCH_URL).parse(response))
+    next_request = outputs[-1]
+
+    assert next_request.url == next_url
+    assert next_request.meta["playwright"] is True
+
+
+def test_idealista_proxy_paginates_without_playwright(load_fixture):
+    next_url = "https://www.idealista.com/alquiler-viviendas/madrid-madrid/pagina-2.htm"
+    html = load_fixture("idealista/search_results.html").replace(
+        "</body>", f'<a rel="next" href="{next_url}">Siguiente</a></body>'
+    )
+    response = HtmlResponse(
+        url=SEARCH_URL,
+        request=Request(SEARCH_URL),
+        body=html.encode(),
+        encoding="utf-8",
+    )
+
+    outputs = list(IdealistaProxySpider(start_urls=SEARCH_URL).parse(response))
+
+    assert outputs[-1].url == next_url
+    assert "playwright" not in outputs[-1].meta

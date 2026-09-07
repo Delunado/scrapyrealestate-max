@@ -44,5 +44,7 @@ def test_environment_example_contains_only_supported_non_secret_compose_values()
     assert lines == {
         "SCRAPYREALESTATE_WEB_PORT=8080",
         "SCRAPYREALESTATE_DATA_VOLUME=scrapyrealestate-data",
+        "SCRAPYREALESTATE_PAGE_LIMIT=5",
+        "SCRAPYREALESTATE_RESULT_LIMIT=150",
     }
     assert all("TOKEN" not in line and "SECRET" not in line for line in lines)

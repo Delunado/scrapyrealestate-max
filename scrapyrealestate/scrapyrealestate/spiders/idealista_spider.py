@@ -8,6 +8,7 @@ from scrapy_playwright.page import PageMethod
 
 from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.items import ScrapyrealestateItem
+from scrapyrealestate.spiders.pagination import BoundedPaginationMixin
 
 
 def _transaction_type(start_url: str) -> TransactionType | None:
@@ -46,7 +47,7 @@ def _location_parts(title: str) -> tuple[str, str, str, str]:
     return town, neighbourhood, street, number
 
 
-class IdealistaSpider(scrapy.Spider):
+class IdealistaSpider(BoundedPaginationMixin, scrapy.Spider):
     name = "idealista"
     allowed_domains = ["idealista.com"]
 
@@ -68,6 +69,9 @@ class IdealistaSpider(scrapy.Spider):
         logging.error(f"Error al obtener datos de idealista.com: {failure.value}")
 
     def parse(self, response):
+        if not self._begin_page(response):
+            return
+        result_count_before = self._result_count
         soup = BeautifulSoup(response.text, "lxml")
         flats = soup.find_all("div", {"class": "item-info-container"})
         if not flats:
@@ -88,8 +92,6 @@ class IdealistaSpider(scrapy.Spider):
         if transaction_type is None:
             return
         portal = PortalKey(self.name)
-        seen_ids: set[str] = set()
-
         for flat in flats:
             link = flat.find(class_="item-link", href=True)
             if link is None:
@@ -100,7 +102,7 @@ class IdealistaSpider(scrapy.Spider):
                 continue
 
             listing_id = _listing_id(href)
-            if listing_id and listing_id in seen_ids:
+            if not self._accept_result(listing_id or urljoin("https://www.idealista.com", href)):
                 continue
 
             town, neighbourhood, street, number = _location_parts(title)
@@ -131,8 +133,26 @@ class IdealistaSpider(scrapy.Spider):
             item["title"] = title
             item["href"] = urljoin("https://www.idealista.com", href)
             item["site"] = portal.value
-            if listing_id:
-                seen_ids.add(listing_id)
             yield item
+
+        next_url = response.css(
+            'a[rel="next"]::attr(href), a.icon-arrow-right-after::attr(href)'
+        ).get()
+        absolute_next = response.urljoin(next_url) if next_url else None
+        if self._result_count > result_count_before and self._can_follow(absolute_next):
+            yield self._next_page_request(absolute_next)
+
+    def _next_page_request(self, url: str):
+        return scrapy.Request(
+            url,
+            callback=self.parse,
+            meta={
+                "playwright": True,
+                "playwright_page_methods": [
+                    PageMethod("wait_for_selector", "main.listing-items", timeout=45000),
+                ],
+            },
+            errback=self.on_error,
+        )
 
     parse_start_url = parse

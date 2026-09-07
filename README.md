@@ -117,6 +117,12 @@ $env:SCRAPYREALESTATE_DATA_VOLUME = "scrapyrealestate-production-data"
 docker compose up --build -d
 ```
 
+Each portal attempt follows recent-first pagination up to 5 pages or 150 unique
+results by default. Set `SCRAPYREALESTATE_PAGE_LIMIT` (1–20) and
+`SCRAPYREALESTATE_RESULT_LIMIT` (1–600) before `docker compose up` to tune those
+bounds. Both limits apply independently to every portal attempt; the existing
+per-search overlap lock and scheduler behavior are unchanged.
+
 The application always writes this deployment's data to
 `/var/lib/scrapyrealestate`. For a direct `docker run`, set
 `SCRAPYREALESTATE_DATA_DIR` only to an absolute, writable path. The Compose file

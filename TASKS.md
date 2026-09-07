@@ -77,6 +77,7 @@ than code complexity.
 - [x] **Externally unreliable** — Add the Idealista adapter and optional proxy transport metadata with a default degraded/unreliable status and no promise of anti-bot bypass.
 - [x] **Medium** — Replace domain parsing and the central portal `if/elif` dispatcher with registry lookup while keeping legacy raw URLs working.
 - [x] **Medium** — Add adapter capability reporting that identifies which requested filters are encoded remotely, evaluated locally, or unavailable.
+- [x] **Hard** — Encode verified native price/area/room filters, correct the Málaga municipality taxonomy, retain local validation, and bound recent-first multi-page crawling per portal.
 - [x] **Hard** — Implement and fixture-test normalized URL/request construction for common location and transaction filters in Pisos.com.
 - [x] **Hard** — Implement and fixture-test normalized URL/request construction for common location and transaction filters in Habitaclia.
 - [x] **Hard** — Implement and fixture-test normalized URL/request construction for common location and transaction filters in Fotocasa.
@@ -146,6 +147,7 @@ than code complexity.
 - [x] **Medium** — Add a listing detail page showing all matching searches and chronological price history without becoming a CRM.
 - [x] **Medium** — Add dedicated views/filters for newly discovered listings, price drops, reappearances, and inactive listings.
 - [x] **Medium** — Add a search-run detail page with per-portal duration, returned/matched/new counts, status category, and redacted error summary.
+- [x] **Easy** — Link latest runs from dashboard/search management and surface returned/matched/new/changed counters plus per-portal status/error without requiring SQLite inspection.
 - [x] **Medium** — Add portal health summaries based on recent attempts while distinguishing unavailable, blocked, parser failure, and empty success.
 - [x] **Easy** — Add bounded retention/pruning for verbose run diagnostics and delivery attempts while retaining listing and price history.
 - [x] **Medium** — Add repository/query and web tests for pagination, filters, ordering, price history, status summaries, and retention.

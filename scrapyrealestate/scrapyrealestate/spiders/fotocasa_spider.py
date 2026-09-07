@@ -8,9 +8,10 @@ from scrapy_playwright.page import PageMethod
 
 from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.items import ScrapyrealestateItem
+from scrapyrealestate.spiders.pagination import BoundedPaginationMixin
 
 
-class FotocasaSpider(scrapy.Spider):
+class FotocasaSpider(BoundedPaginationMixin, scrapy.Spider):
     name = "fotocasa"
     allowed_domains = ["fotocasa.es"]
 
@@ -34,6 +35,9 @@ class FotocasaSpider(scrapy.Spider):
         logging.error(f'Error al obtener datos de fotocasa.es: {failure.value}')
 
     def parse(self, response):
+        if not self._begin_page(response):
+            return
+        result_count_before = self._result_count
         default_url = 'https://www.fotocasa.es'
         soup = BeautifulSoup(response.text, 'lxml')
 
@@ -82,6 +86,8 @@ class FotocasaSpider(scrapy.Spider):
             listing_id = flat.get('id', '')
             if not isinstance(title, str) or not title.strip() or not (listing_id or href):
                 continue
+            if not self._accept_result(listing_id or href):
+                continue
 
             items['id'] = listing_id
             items['title'] = title.strip()
@@ -98,3 +104,23 @@ class FotocasaSpider(scrapy.Spider):
             items['site'] = PortalKey.FOTOCASA.value
 
             yield items
+
+        next_url = response.css('link[rel="next"]::attr(href), a[rel="next"]::attr(href)').get()
+        absolute_next = response.urljoin(next_url) if next_url else None
+        if self._result_count > result_count_before and self._can_follow(absolute_next):
+            yield scrapy.Request(
+                absolute_next,
+                callback=self.parse,
+                meta={
+                    'playwright': True,
+                    'playwright_page_methods': [
+                        PageMethod(
+                            "wait_for_selector",
+                            "script#__initial_props__",
+                            state="attached",
+                            timeout=45000,
+                        ),
+                    ],
+                },
+                errback=self.on_error,
+            )

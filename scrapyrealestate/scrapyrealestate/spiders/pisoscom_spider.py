@@ -6,9 +6,10 @@ from scrapy.spiders import CrawlSpider
 
 from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.items import ScrapyrealestateItem
+from scrapyrealestate.spiders.pagination import BoundedPaginationMixin
 
 
-class PisoscomSpider(CrawlSpider):
+class PisoscomSpider(BoundedPaginationMixin, CrawlSpider):
     name = "pisoscom"
     allowed_domains = ["pisos.com"]
 
@@ -32,7 +33,9 @@ class PisoscomSpider(CrawlSpider):
     }
 
     def parse(self, response):
-        ids = set()
+        if not self._begin_page(response):
+            return
+        result_count_before = self._result_count
         default_url = 'https://pisos.com'
         soup = BeautifulSoup(response.text, 'lxml')
         # Cada vivienda es un div.ad-preview__info.
@@ -125,27 +128,28 @@ class PisoscomSpider(CrawlSpider):
                     floor = t
 
             # Si esta activado, pasamos al siguiente ya que repite ids
-            if listing_id and listing_id in ids:
+            if not self._accept_result(listing_id or urljoin(default_url, href)):
                 continue
-            else:
-                items = ScrapyrealestateItem()
-                items['id'] = listing_id
-                items['price'] = price
-                items['m2'] = m2
-                items['rooms'] = rooms
-                items['floor'] = floor
-                items['town'] = town
-                items['neighbour'] = neighbour
-                items['street'] = street
-                items['number'] = number
-                items['type'] = transaction_type.value
-                items['title'] = title
-                items['href'] = urljoin(default_url, href)
-                items['site'] = PortalKey.PISOSCOM.value
-                if listing_id:
-                    ids.add(listing_id)
+            items = ScrapyrealestateItem()
+            items['id'] = listing_id
+            items['price'] = price
+            items['m2'] = m2
+            items['rooms'] = rooms
+            items['floor'] = floor
+            items['town'] = town
+            items['neighbour'] = neighbour
+            items['street'] = street
+            items['number'] = number
+            items['type'] = transaction_type.value
+            items['title'] = title
+            items['href'] = urljoin(default_url, href)
+            items['site'] = PortalKey.PISOSCOM.value
+            yield items
 
-                yield items
+        next_url = response.css('.pagination__next a::attr(href)').get()
+        absolute_next = response.urljoin(next_url) if next_url else None
+        if self._result_count > result_count_before and self._can_follow(absolute_next):
+            yield response.follow(next_url, callback=self.parse)
 
     # Procesamos tambien la primera pagina (no solo las paginadas).
     parse_start_url = parse

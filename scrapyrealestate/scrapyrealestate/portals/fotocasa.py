@@ -1,19 +1,23 @@
 """Fotocasa adapter around the existing Playwright ``fotocasa`` spider."""
 
+import math
 from typing import ClassVar
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from scrapyrealestate.domain.capabilities import SearchFilterKey
+from scrapyrealestate.domain.search import NormalizedSearch
 from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.portals.base import (
-    ALL_LOCAL_CAPABILITIES,
     BasePortalAdapter,
     PortalMetadata,
     PortalTransport,
+    remote_capabilities,
 )
 from scrapyrealestate.spiders.fotocasa_spider import FotocasaSpider
 
 
 class FotocasaAdapter(BasePortalAdapter):
-    """Validates Fotocasa search URLs; Fotocasa has no recent-sort suffix."""
+    """Validate Fotocasa URLs and request newest listings first."""
 
     _METADATA: ClassVar[PortalMetadata] = PortalMetadata(
         key=PortalKey.FOTOCASA,
@@ -22,7 +26,15 @@ class FotocasaAdapter(BasePortalAdapter):
         spider_name=FotocasaSpider.name,
         transaction_types=frozenset({TransactionType.BUY, TransactionType.RENT}),
         transport=PortalTransport.PLAYWRIGHT,
-        capabilities=ALL_LOCAL_CAPABILITIES,
+        capabilities=remote_capabilities(
+            SearchFilterKey.LOCATION,
+            SearchFilterKey.MIN_PRICE_EUROS,
+            SearchFilterKey.MAX_PRICE_EUROS,
+            SearchFilterKey.MIN_AREA_SQM,
+            SearchFilterKey.MAX_AREA_SQM,
+            SearchFilterKey.MIN_ROOMS,
+            SearchFilterKey.MAX_ROOMS,
+        ),
         caveats=(
             "Parses the embedded script#__initial_props__ JSON "
             "(initialSearch.result.realEstates); wait/JSON structure may "
@@ -45,10 +57,12 @@ class FotocasaAdapter(BasePortalAdapter):
         return None
 
     def _apply_recent_sort(self, raw_url: str) -> str:
-        # main.py does not append a recent-sort suffix for Fotocasa.
-        return raw_url
+        parsed = urlsplit(raw_url)
+        query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        query.update(sortType="publicationDate", sortOrderDesc="true")
+        return urlunsplit(parsed._replace(query=urlencode(query)))
 
-    def _build_search_url(self, transaction_type: TransactionType, location_slug: str) -> str:
+    def _build_search_url(self, search: NormalizedSearch, location_slug: str) -> str:
         # e.g. https://www.fotocasa.es/es/comprar/viviendas/madrid/l, matching
         # the "/es/<segment>/viviendas/<location>/l" shape used by this
         # codebase's raw search URL fixtures (SEARCH_URL below). Fotocasa's
@@ -57,5 +71,33 @@ class FotocasaAdapter(BasePortalAdapter):
         # that distinction is out of scope for this best-effort slug (see
         # portals.location), so an exact-match search should keep using the
         # raw-URL override instead.
-        segment = self._TRANSACTION_SEGMENTS[transaction_type]
-        return f"https://www.fotocasa.es/es/{segment}/viviendas/{location_slug}/l"
+        location_path = {
+            "malaga": "malaga-capital/todas-las-zonas",
+            "madrid": "madrid-capital/todas-las-zonas",
+        }.get(location_slug, location_slug)
+        segment = self._TRANSACTION_SEGMENTS[search.transaction_type]
+        base = f"https://www.fotocasa.es/es/{segment}/viviendas/{location_path}/l/1"
+        filters = search.filters
+        query = {
+            key: str(value)
+            for key, value in (
+                ("minPrice", filters.min_price_euros),
+                ("maxPrice", filters.max_price_euros),
+                (
+                    "minSurface",
+                    math.floor(filters.min_area_sqm)
+                    if filters.min_area_sqm is not None
+                    else None,
+                ),
+                (
+                    "maxSurface",
+                    math.ceil(filters.max_area_sqm)
+                    if filters.max_area_sqm is not None
+                    else None,
+                ),
+                ("minRooms", filters.min_rooms),
+                ("maxRooms", filters.max_rooms),
+            )
+            if value is not None
+        }
+        return f"{base}?{urlencode(query)}" if query else base

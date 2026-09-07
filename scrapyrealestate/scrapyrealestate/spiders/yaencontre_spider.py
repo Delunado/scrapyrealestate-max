@@ -7,9 +7,10 @@ from scrapy_playwright.page import PageMethod
 
 from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.items import ScrapyrealestateItem
+from scrapyrealestate.spiders.pagination import BoundedPaginationMixin
 
 
-class YaencontreSpider(scrapy.Spider):
+class YaencontreSpider(BoundedPaginationMixin, scrapy.Spider):
     name = "yaencontre"
     allowed_domains = ["yaencontre.com"]
 
@@ -30,6 +31,9 @@ class YaencontreSpider(scrapy.Spider):
         logging.error(f'Error al obtener datos de yaencontre.com: {failure.value}')
 
     def parse(self, response):
+        if not self._begin_page(response):
+            return
+        result_count_before = self._result_count
         default_url = 'https://www.yaencontre.com'
         soup = BeautifulSoup(response.text, 'lxml')
         # Cada vivienda es un article.real-estate-card.
@@ -55,6 +59,8 @@ class YaencontreSpider(scrapy.Spider):
                 listing_id = href.split('-')[1]
             except IndexError:
                 listing_id = ''
+            if not self._accept_result(listing_id or urljoin(default_url, href)):
+                continue
 
             # Municipio, barrio y calle desde el titulo separado por comas:
             #   "Piso en calle Huesca, Castillejos, Madrid"
@@ -96,3 +102,18 @@ class YaencontreSpider(scrapy.Spider):
             items['href'] = urljoin(default_url, href)
             items['site'] = PortalKey.YAENCONTRE.value
             yield items
+
+        next_url = response.css('a[rel="next"]::attr(href), .pagination .next a::attr(href)').get()
+        absolute_next = response.urljoin(next_url) if next_url else None
+        if self._result_count > result_count_before and self._can_follow(absolute_next):
+            yield scrapy.Request(
+                absolute_next,
+                callback=self.parse,
+                meta={
+                    'playwright': True,
+                    'playwright_page_methods': [
+                        PageMethod("wait_for_selector", "article.real-estate-card", timeout=30000),
+                    ],
+                },
+                errback=self.on_error,
+            )

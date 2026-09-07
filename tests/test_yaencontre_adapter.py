@@ -57,7 +57,7 @@ def test_yaencontre_build_request_rejects_unknown_transaction_section():
         ),
         (
             TransactionType.BUY,
-            "https://www.yaencontre.com/comprar/pisos/madrid/o-recientes",
+            "https://www.yaencontre.com/venta/pisos/madrid/o-recientes",
         ),
     ],
 )

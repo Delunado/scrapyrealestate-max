@@ -133,3 +133,25 @@ def test_search_evaluation_includes_transaction_type():
 
 def test_no_active_filters_matches_every_normalized_listing():
     assert evaluate_filters(make_listing(), SearchFilters()).outcome is FilterOutcome.MATCH
+
+
+def test_malaga_municipality_variants_match_without_accepting_other_municipalities():
+    filters = SearchFilters(location="Málaga")
+
+    for portal_value in ("Málaga", "Malaga Capital", "Municipio de Málaga", "Málaga (Málaga)"):
+        assert evaluate_filters(make_listing(location=portal_value), filters).outcome is FilterOutcome.MATCH
+
+    assert (
+        evaluate_filters(make_listing(location="Vélez-Málaga"), filters).outcome
+        is FilterOutcome.NO_MATCH
+    )
+
+
+def test_remote_filters_are_still_validated_locally():
+    result = evaluate_filters(
+        make_listing(price_euros=450_000, rooms=3),
+        SearchFilters(max_price_euros=400_000, min_rooms=2),
+    )
+
+    assert result.outcome is FilterOutcome.NO_MATCH
+    assert result.failed_filters == ("max_price_euros",)

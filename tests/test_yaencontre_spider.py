@@ -81,3 +81,22 @@ def test_every_yaencontre_result_satisfies_normalized_boundary(load_fixture):
     assert normalized[0].rooms == 3
     assert normalized[1].price_euros is None
     assert normalized[1].area_sqm is None
+
+
+def test_yaencontre_follows_next_page_with_playwright(load_fixture):
+    next_url = "https://www.yaencontre.com/alquiler/pisos/madrid/pagina-2"
+    html = load_fixture("yaencontre/search_results.html").replace(
+        "</body>", f'<a rel="next" href="{next_url}">Siguiente</a></body>'
+    )
+    response = HtmlResponse(
+        url=SEARCH_URL,
+        request=Request(SEARCH_URL),
+        body=html.encode(),
+        encoding="utf-8",
+    )
+
+    outputs = list(YaencontreSpider(start_urls=SEARCH_URL).parse(response))
+    next_request = outputs[-1]
+
+    assert next_request.url == next_url
+    assert next_request.meta["playwright"] is True

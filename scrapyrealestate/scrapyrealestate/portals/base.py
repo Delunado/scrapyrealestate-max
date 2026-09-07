@@ -57,6 +57,15 @@ def normalize_hostname(hostname: str) -> str:
 ALL_LOCAL_CAPABILITIES = FilterCapabilities(local=frozenset(SearchFilterKey))
 
 
+def remote_capabilities(*keys: SearchFilterKey) -> FilterCapabilities:
+    """Declare verified remote filters; all others retain local fallback."""
+    remote = frozenset(keys)
+    return FilterCapabilities(
+        remote=remote,
+        local=frozenset(SearchFilterKey) - remote,
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class PortalMetadata:
     """Stable identity and operational facts about one portal integration."""
@@ -235,11 +244,11 @@ class BasePortalAdapter(PortalAdapter):
 
         Unlike :meth:`build_request`, this needs no pre-existing legacy raw
         URL: it encodes the search's transaction type and location into a
-        fresh search URL via :meth:`_build_search_url`. Only the location
-        filter is encoded remotely (a best-effort municipality slug; see
-        ``portals.location``); every other filter, including location
-        itself once results come back, is still evaluated locally. Adapters
-        that do not implement :meth:`_build_search_url` raise
+        fresh search URL via :meth:`_build_search_url`. The hook receives the
+        complete normalized search so each adapter can encode only filters its
+        capability metadata declares remote. Every filter, including remote
+        filters, is still evaluated locally after normalization. Adapters that
+        do not implement :meth:`_build_search_url` raise
         ``PortalRequestError`` explicitly rather than silently falling back
         to an unrelated URL.
         """
@@ -263,7 +272,7 @@ class BasePortalAdapter(PortalAdapter):
         except ValueError as error:
             raise PortalRequestError(f"{metadata.key.value}: {error}") from error
 
-        search_url = self._build_search_url(search.transaction_type, location_slug)
+        search_url = self._build_search_url(search, location_slug)
         return PortalRequest(
             portal=metadata.key,
             spider_name=metadata.spider_name,
@@ -273,7 +282,7 @@ class BasePortalAdapter(PortalAdapter):
         )
 
     def _build_search_url(
-        self, transaction_type: TransactionType, location_slug: str
+        self, search: NormalizedSearch, location_slug: str
     ) -> str:
         """Build this portal's search URL, before the recent-sort suffix.
 

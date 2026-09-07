@@ -83,3 +83,35 @@ def test_habitaclia_identity_prefers_url_id_and_ignores_mutable_query_values():
     assert first == changed
     assert first.isdecimal()
     assert 0 < int(first) < 2**63
+
+
+def test_habitaclia_follows_its_next_page(load_fixture):
+    html = load_fixture("habitaclia/search_results.html").replace(
+        "</body>",
+        '<div class="pagination"><li class="next"><a href="/alquiler-madrid-1.htm">'
+        "Siguiente</a></li></div></body>",
+    )
+    response = HtmlResponse(
+        url=SEARCH_URL,
+        request=Request(SEARCH_URL),
+        body=html.encode(),
+        encoding="utf-8",
+    )
+
+    outputs = list(HabitacliaSpider(start_urls=SEARCH_URL).parse(response))
+
+    assert outputs[-1].url == "https://www.habitaclia.com/alquiler-madrid-1.htm"
+
+
+def test_habitaclia_current_sale_url_parses_results(load_fixture):
+    url = "https://www.habitaclia.com/viviendas-malaga.htm"
+    response = HtmlResponse(
+        url=url,
+        request=Request(url),
+        body=load_fixture("habitaclia/search_results.html").encode(),
+        encoding="utf-8",
+    )
+
+    outputs = list(HabitacliaSpider(start_urls=url).parse(response))
+
+    assert outputs[0]["type"] == "buy"

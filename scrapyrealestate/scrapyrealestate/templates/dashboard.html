@@ -22,9 +22,9 @@
 <section>
   <div class="section-heading"><h2>Búsquedas</h2><a href="{{ url_for('ui.search_list') }}">Gestionar</a></div>
   {% if searches %}
-  <div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Estado</th><th>Última ejecución</th><th>Próxima</th><th>Nuevos</th></tr></thead><tbody>
+  <div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Estado</th><th>Última ejecución</th><th>Próxima</th><th>Resultados</th></tr></thead><tbody>
   {% for search in searches %}{% set latest = statuses.get(search.id) %}
-    <tr><td><a href="{{ url_for('ui.search_edit', search_id=search.id) }}">{{ search.search.name }}</a></td><td>{{ 'Activa' if search.enabled else 'Deshabilitada' }}</td><td>{{ latest.run.status.value if latest and latest.run else 'Sin ejecuciones' }}</td><td>{{ latest.next_run_at if latest and latest.next_run_at else '—' }}</td><td>{{ latest.run.counts.new if latest and latest.run else 0 }}</td></tr>
+    <tr><td><a href="{{ url_for('ui.search_edit', search_id=search.id) }}">{{ search.search.name }}</a></td><td>{{ 'Activa' if search.enabled else 'Deshabilitada' }}</td><td>{% if latest and latest.run %}<a href="{{ url_for('ui.run_status', run_id=latest.run.id) }}">{{ latest.run.status.value }}</a>{% else %}Sin ejecuciones{% endif %}</td><td>{{ latest.next_run_at if latest and latest.next_run_at else '—' }}</td><td>{% if latest and latest.run %}{{ latest.run.counts.returned }} devueltos · {{ latest.run.counts.matched }} coincidentes · {{ latest.run.counts.new }} nuevos · {{ latest.run.counts.changed }} cambiados{% else %}—{% endif %}</td></tr>
   {% endfor %}</tbody></table></div>
   {% else %}<div class="empty"><p>Aún no hay búsquedas.</p><a class="button" href="{{ url_for('ui.search_create') }}">Crear la primera</a></div>{% endif %}
 </section>

@@ -2,14 +2,14 @@
 {% block title %}Búsquedas · ScrapyRealEstate{% endblock %}
 {% block content %}
 <div class="page-heading"><div><h1>Búsquedas</h1><p>Consultas guardadas y sus ejecuciones.</p></div><a class="button" href="{{ url_for('ui.search_create') }}">Nueva búsqueda</a></div>
-{% if searches %}<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Operación</th><th>Intervalo</th><th>Portales</th><th>Último estado</th><th>Acciones</th></tr></thead><tbody>
+{% if searches %}<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Operación</th><th>Intervalo</th><th>Portales</th><th>Última ejecución</th><th>Acciones</th></tr></thead><tbody>
 {% for search in searches %}{% set latest = statuses.get(search.id) %}
 <tr>
   <td><strong>{{ search.search.name }}</strong><br><span class="badge {{ 'badge-on' if search.enabled else '' }}">{{ 'Activa' if search.enabled else 'Deshabilitada' }}</span></td>
   <td>{{ 'Compra' if search.search.transaction_type.value == 'buy' else 'Alquiler' }}</td>
   <td>{{ search.schedule.interval_seconds|interval }}</td>
   <td>{{ search.portals|selectattr('enabled')|map(attribute='portal.value')|join(', ') or 'Ninguno' }}</td>
-  <td>{{ latest.run.status.value if latest and latest.run else 'Sin ejecuciones' }}</td>
+  <td>{% if latest and latest.run %}<a href="{{ url_for('ui.run_status', run_id=latest.run.id) }}"><span class="badge">{{ latest.run.status.value }}</span></a><br><span class="muted">Devueltos {{ latest.run.counts.returned }} · Coincidentes {{ latest.run.counts.matched }} · Nuevos {{ latest.run.counts.new }} · Cambiados {{ latest.run.counts.changed }}</span>{% for attempt in latest.attempts %}<br><span class="muted">{{ attempt.portal.value }}: {{ attempt.status }} · {{ attempt.counts.returned }}/{{ attempt.counts.matched }}/{{ attempt.counts.new }}/{{ attempt.counts.changed }}{% if attempt.error_category %} · {{ attempt.error_category }}{% endif %}</span>{% endfor %}{% else %}Sin ejecuciones{% endif %}</td>
   <td class="actions">
     <a href="{{ url_for('ui.search_edit', search_id=search.id) }}">Editar</a>
     <a href="{{ url_for('ui.search_notifications', search_id=search.id) }}">Avisos</a>

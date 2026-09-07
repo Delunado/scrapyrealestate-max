@@ -8,6 +8,7 @@ from scrapy.spiders import CrawlSpider
 
 from scrapyrealestate.domain.values import PortalKey, TransactionType
 from scrapyrealestate.items import ScrapyrealestateItem
+from scrapyrealestate.spiders.pagination import BoundedPaginationMixin
 
 
 def habitaclia_listing_id(href: str) -> str:
@@ -32,7 +33,7 @@ def habitaclia_listing_id(href: str) -> str:
     return str(fingerprint or 1)
 
 
-class HabitacliaSpider(CrawlSpider):
+class HabitacliaSpider(BoundedPaginationMixin, CrawlSpider):
     name = "habitaclia"
     allowed_domains = ["habitaclia.com"]
 
@@ -56,14 +57,18 @@ class HabitacliaSpider(CrawlSpider):
     }
 
     def parse(self, response):
+        if not self._begin_page(response):
+            return
+        result_count_before = self._result_count
         soup = BeautifulSoup(response.text, 'lxml')
         # Cada vivienda es un div.list-item.
         flats = soup.find_all("div", {"class": "list-item"})
 
         # Obtenemos si es alquiler o compra a partir de la url
-        if self.start_urls.split('/')[3].split('-')[0] == 'alquiler':
+        section = self.start_urls.split('/')[3].split('-')[0]
+        if section == 'alquiler':
             transaction_type = TransactionType.RENT
-        elif self.start_urls.split('/')[3].split('-')[0] == 'venta':
+        elif section in ('venta', 'viviendas', 'pisos', 'casas', 'aticos'):
             transaction_type = TransactionType.BUY
         else:
             return
@@ -151,6 +156,9 @@ class HabitacliaSpider(CrawlSpider):
 
             listing_id = habitaclia_listing_id(href)
 
+            if not self._accept_result(listing_id or href):
+                continue
+
             items = ScrapyrealestateItem()
             items['id'] = listing_id
             items['price'] = price.replace(' ', '') + '/mes'
@@ -167,6 +175,11 @@ class HabitacliaSpider(CrawlSpider):
             items['site'] = PortalKey.HABITACLIA.value
 
             yield items
+
+        next_url = response.css('li.next a::attr(href), a[rel="next"]::attr(href)').get()
+        absolute_next = response.urljoin(next_url) if next_url else None
+        if self._result_count > result_count_before and self._can_follow(absolute_next):
+            yield response.follow(next_url, callback=self.parse)
 
     # Procesamos tambien la primera pagina (no solo las paginadas).
     parse_start_url = parse

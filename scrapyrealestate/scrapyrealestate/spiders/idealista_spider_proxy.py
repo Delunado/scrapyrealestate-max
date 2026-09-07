@@ -2,9 +2,10 @@ import scrapy
 from scrapy.spiders import CrawlSpider
 from scrapyrealestate.proxies import get_proxies
 from scrapyrealestate.spiders.idealista_spider import IdealistaSpider
+from scrapyrealestate.spiders.pagination import BoundedPaginationMixin
 
 
-class IdealistaProxySpider(CrawlSpider):
+class IdealistaProxySpider(BoundedPaginationMixin, CrawlSpider):
     """Variante de la spider de Idealista que enruta por proxies rotatorios.
 
     Reutiliza el parser de IdealistaSpider (solo cambia el transporte: proxies
@@ -36,6 +37,9 @@ class IdealistaProxySpider(CrawlSpider):
 
     def start_requests(self):
         yield scrapy.Request(f'{self.start_urls}')
+
+    def _next_page_request(self, url: str):
+        return scrapy.Request(url, callback=self.parse)
 
     @classmethod
     def update_settings(cls, settings):
