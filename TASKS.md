@@ -172,7 +172,7 @@ than code complexity.
 
 - [x] **Medium** — Add normalized address/location tokens and conservative comparison helpers for price, area, bedrooms, and title similarity with Spanish text fixtures.
 - [x] **Medium** — Add schema/repository support for duplicate-candidate groups, scores, reasons, review state, and non-destructive membership history.
-- [ ] **Hard** — Implement candidate generation that narrows by location and structural attributes before scoring, with bounded query cost.
+- [x] **Hard** — Implement candidate generation that narrows by location and structural attributes before scoring, with bounded query cost.
 - [ ] **Hard** — Implement a conservative weighted score with precision-first thresholds and tests emphasizing false-positive prevention.
 - [ ] **Medium** — Compute duplicate candidates asynchronously after ingestion without merging listing identity or blocking notifications.
 - [ ] **Medium** — Add a read-only web view showing candidate groups, evidence, source links, and confidence; do not auto-merge properties.

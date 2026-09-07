@@ -471,6 +471,11 @@ group with structured reasons and an explicit pending/accepted/rejected review
 state. Candidate memberships are append-only history rows; listing foreign keys are
 restricted rather than cascaded so reviewing a candidate never rewrites or merges a
 listing.
+`services/duplicate_candidates.py` generates cross-site pairs through a dedicated
+bounded query: it first narrows by transaction, case-insensitive location, portal,
+and broad structural windows using `listings_duplicate_narrowing_idx`, then requires
+identical accent-folded location tokens and at least two known structural attributes
+before a pair can reach scoring. Source and per-source pool limits are mandatory.
 
 New code should maintain these practical boundaries without creating needless
 micro-modules:
