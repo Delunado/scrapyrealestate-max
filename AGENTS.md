@@ -205,10 +205,15 @@ infrastructure without a concrete requirement and an explicit update to
   log and classifies non-empty success, valid empty output, parser failure,
   transport failure, and likely blocking. Live portal behavior is not a
   deterministic regression test.
-- `Dockerfile`: Python 3.12 image with Chromium and `tini`; its working directory is
-  `/scrapyrealestate/scrapyrealestate`.
-- `docker-compose.yml`: current published-image deployment. It exposes port 8080
-  but does not mount persistent data or define a healthcheck.
+- `Dockerfile`: Python 3.12 image with Chromium and `tini`; it runs as UID/GID
+  `10001`, keeps Playwright browsers at `/ms-playwright`, owns its mounted data
+  target at `/var/lib/scrapyrealestate`, exposes only port 8080, and healthchecks
+  `/readyz`. Its working directory is `/scrapyrealestate/scrapyrealestate`.
+- `docker-compose.yml`: current source-built persistent deployment. It maps one
+  named data volume to `/var/lib/scrapyrealestate`, uses `tini`/Compose init,
+  restarts unless stopped, has a 30-second stop grace period and readiness
+  healthcheck, and accepts `SCRAPYREALESTATE_WEB_PORT` and
+  `SCRAPYREALESTATE_DATA_VOLUME` substitutions.
 - `README.md`: current user-facing behavior and deployment instructions.
 - `TASKS.md`: canonical ordered improvement plan. Read it before making changes.
 
@@ -519,6 +524,9 @@ scrapy list
 
 # From the repository root: validates Compose syntax; no daemon required
 docker compose config --quiet
+
+# Opt-in only: builds Compose and verifies persistent data after recreation
+SCRAPYREALESTATE_RUN_DOCKER_SMOKE=1 python -m pytest -m deployment
 ```
 
 Run an individual live spider from `scrapyrealestate/`:
@@ -556,10 +564,12 @@ strategy (`tini` is already present), an unprivileged runtime user when feasible
 a healthcheck, a configurable host port, and one documented persistent data mount.
 Do not expose Scrapy or debug ports.
 
-The current Compose file uses the published image and ephemeral container storage.
-Do not claim upgrades are persistent until the volume task is implemented and
-tested by recreating the container. Keep stdout/stderr logs useful for `docker
-compose logs`; do not add an internal monitoring stack.
+Compose builds the current checkout and persists all application state in the named
+volume mounted at `/var/lib/scrapyrealestate`; do not use `docker compose down -v`
+for ordinary updates. The opt-in deployment smoke test seeds legacy configuration
+and history, recreates the service, and confirms SQLite persistence and readiness.
+Keep stdout/stderr logs useful for `docker compose logs`; do not add an internal
+monitoring stack.
 
 ## Git and task workflow
 

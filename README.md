@@ -167,6 +167,26 @@ does not, stop the service, restore the pre-update volume backup, check out the
 earlier revision, and run `docker compose up --build -d`. Never attempt to edit or
 reverse migration records in place.
 
+### Deployment verification
+
+The ordinary test suite remains offline. On a Docker host, run the deployment smoke
+test after changing the image, Compose file, or persistence lifecycle:
+
+```powershell
+$env:SCRAPYREALESTATE_RUN_DOCKER_SMOKE = "1"
+python -m pytest -m deployment
+```
+
+It proves that an imported saved search and legacy-seen history survive an idle
+stop/start and a container recreation, while `/readyz` remains available. The
+offline lifecycle tests also exercise the active-crawl shutdown path: they confirm
+the application stops new launches, drains a running child briefly, kills its
+process group when needed, and closes cleanly. For a release with an actual portal
+crawl in progress, trigger a manual run from the UI, issue `docker compose stop`,
+wait for it to return, then inspect `docker compose ps` and start the service again.
+There must be no running service container before the restart and its readiness
+endpoint must return successfully afterwards.
+
 ## Runtime and data
 
 `python main.py` delegates to the persistent bootstrap. Startup creates the data
@@ -187,12 +207,12 @@ Operational maintenance clears diagnostic text after 30 days and removes termina
 delivery-attempt rows after 90 days or above the newest 10,000 records. Pending and
 leased deliveries are retained, as are listing, match, event, and price histories.
 
-### Configuraci??n y deduplicaci??n
+### Configuración y deduplicación
 
-La configuraci??n autoritativa se guarda en SQLite. La deduplicaci??n utiliza la
-identidad externa o URL can??nica dentro de cada portal, y conserva por separado las
-coincidencias de cada b??squeda. Los JSON heredados solo son fuentes de importaci??n
-compatibles y no vuelven a ser el estado principal de la aplicaci??n.
+La configuración autoritativa se guarda en SQLite. La deduplicación utiliza la
+identidad externa o URL canónica dentro de cada portal, y conserva por separado las
+coincidencias de cada búsqueda. Los JSON heredados solo son fuentes de importación
+compatibles y no vuelven a ser el estado principal de la aplicación.
 
 Notification credentials are user supplied. There is no shared Telegram token.
 Ordinary channel reads and templates receive masked values; raw credentials are
@@ -217,4 +237,3 @@ test.
 
 Based on [mferark/scrapyrealestate](https://github.com/mferark/scrapyrealestate).
 Licensed under GPL-3.0.
-
