@@ -180,7 +180,7 @@ than code complexity.
 
 ## Phase 13 — Hardening and release readiness
 
-- [ ] **Medium** — Add end-to-end offline tests spanning search creation, scheduled fixture ingestion, listing/history persistence, event generation, delivery routing, and web display.
+- [x] **Medium** — Add end-to-end offline tests spanning search creation, scheduled fixture ingestion, listing/history persistence, event generation, delivery routing, and web display.
 - [ ] **Medium** — Add failure-injection tests for corrupted legacy files, migration rollback, locked SQLite, killed spider subprocesses, malformed portal output, notifier timeouts, and restart recovery.
 - [ ] **Easy** — Review logs and status payloads for actionable context, bounded size, stable error categories, and comprehensive secret redaction.
 - [ ] **Medium** — Establish and test database backup/restore and pre-migration backup behavior against representative legacy and current data.
