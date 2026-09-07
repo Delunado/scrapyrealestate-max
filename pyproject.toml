@@ -2,6 +2,9 @@
 addopts = "-ra"
 pythonpath = ["scrapyrealestate"]
 testpaths = ["tests"]
+markers = [
+    "deployment: opt-in Docker Compose deployment smoke test",
+]
 
 [tool.ruff]
 target-version = "py312"
