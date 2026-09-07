@@ -20,6 +20,7 @@ from scrapyrealestate.runtime import RuntimePaths, get_runtime_paths
 if TYPE_CHECKING:
     from scrapyrealestate.persistence.database import Database
     from scrapyrealestate.persistence.listings import ListingQueryRepository
+    from scrapyrealestate.persistence.duplicates import DuplicateCandidateRepository
     from scrapyrealestate.notifiers.registry import NotifierRegistry
     from scrapyrealestate.persistence.notifications import NotificationRepository
     from scrapyrealestate.persistence.prices import PriceHistoryRepository
@@ -55,6 +56,7 @@ class WebRepositories:
     notifications: NotificationRepository | None = None
     listings: ListingQueryRepository | None = None
     prices: PriceHistoryRepository | None = None
+    duplicates: DuplicateCandidateRepository | None = None
 
 
 @dataclass(frozen=True, slots=True)

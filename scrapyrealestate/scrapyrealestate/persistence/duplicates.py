@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import StrEnum
 from typing import Any
+from urllib.parse import urlsplit
 
 from scrapyrealestate.domain.values import PortalKey
 from scrapyrealestate.persistence.database import transaction
@@ -25,8 +26,33 @@ class DuplicateCandidateMember:
     portal: PortalKey
     title: str
     canonical_url: str | None
+    price_euros: int | None
+    area_sqm: float | None
+    rooms: int | None
+    location: str | None
+    neighbourhood: str | None
+    street: str | None
+    street_number: str | None
     added_at: str
     removed_at: str | None
+
+    @property
+    def external_url(self) -> str | None:
+        if self.canonical_url is None:
+            return None
+        try:
+            parsed = urlsplit(self.canonical_url)
+            _ = parsed.port
+        except ValueError:
+            return None
+        if (
+            parsed.scheme.lower() not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+        ):
+            return None
+        return self.canonical_url
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +82,14 @@ class DuplicateCandidateGroup:
     updated_at: str
     reviewed_at: str | None
     members: tuple[DuplicateCandidateMember, ...]
+
+    @property
+    def active_members(self) -> tuple[DuplicateCandidateMember, ...]:
+        return tuple(member for member in self.members if member.removed_at is None)
+
+    @property
+    def confidence(self) -> str:
+        return "high" if self.score >= 0.85 else "review"
 
 
 class DuplicateCandidateRepository:
@@ -290,7 +324,10 @@ class DuplicateCandidateRepository:
         members = self.connection.execute(
             """
             SELECT memberships.listing_id, listings.portal_key, listings.title,
-                   listings.canonical_url, memberships.added_at,
+                   listings.canonical_url, listings.price_euros,
+                   listings.area_sqm, listings.rooms, listings.location,
+                   listings.neighbourhood, listings.street,
+                   listings.street_number, memberships.added_at,
                    memberships.removed_at
             FROM duplicate_candidate_memberships AS memberships
             JOIN listings ON listings.id = memberships.listing_id
@@ -314,6 +351,13 @@ class DuplicateCandidateRepository:
                     portal=PortalKey(member["portal_key"]),
                     title=member["title"],
                     canonical_url=member["canonical_url"],
+                    price_euros=member["price_euros"],
+                    area_sqm=member["area_sqm"],
+                    rooms=member["rooms"],
+                    location=member["location"],
+                    neighbourhood=member["neighbourhood"],
+                    street=member["street"],
+                    street_number=member["street_number"],
                     added_at=member["added_at"],
                     removed_at=member["removed_at"],
                 )

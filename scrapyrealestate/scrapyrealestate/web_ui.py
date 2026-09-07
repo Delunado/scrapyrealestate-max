@@ -25,6 +25,7 @@ from scrapyrealestate.domain.search import NormalizedSearch, SearchFilters
 from scrapyrealestate.domain.values import PortalKey, PropertyType, TransactionType
 from scrapyrealestate.notifiers.base import NotifierConfigurationError
 from scrapyrealestate.persistence.notifications import NotificationProvider
+from scrapyrealestate.persistence.duplicates import DuplicateReviewState
 from scrapyrealestate.persistence.runs import TriggerKind
 from scrapyrealestate.persistence.searches import (
     SearchConflictError,
@@ -125,6 +126,25 @@ def search_list():
 @ui.get("/listings")
 def listing_list():
     return _render_listing_list()
+
+
+@ui.get("/duplicates")
+def duplicate_candidates():
+    groups = _duplicates().list(review_state=DuplicateReviewState.PENDING)
+    return render_template(
+        "duplicates/list.html",
+        groups=groups,
+        evidence_labels={
+            "location": "Ubicación",
+            "exact_address": "Dirección exacta",
+            "neighbourhood": "Barrio",
+            "property_type": "Tipo de inmueble",
+            "bedrooms": "Habitaciones",
+            "area": "Superficie",
+            "price": "Precio",
+            "title": "Título",
+        },
+    )
 
 
 @ui.get("/listings/new")
@@ -667,6 +687,13 @@ def _listings():
     return repository
 
 
+def _duplicates():
+    repository = _repositories().duplicates
+    if repository is None:
+        abort(503)
+    return repository
+
+
 def _channel_service():
     service = _context().services.notification_configuration
     if service is not None:
@@ -689,6 +716,7 @@ def _repositories():
     if cached is not None:
         return cached
     from scrapyrealestate.flask_server import WebRepositories
+    from scrapyrealestate.persistence.duplicates import DuplicateCandidateRepository
     from scrapyrealestate.persistence.listings import ListingQueryRepository
     from scrapyrealestate.persistence.notifications import NotificationRepository
     from scrapyrealestate.persistence.prices import PriceHistoryRepository
@@ -703,6 +731,7 @@ def _repositories():
         notifications=NotificationRepository(connection),
         listings=ListingQueryRepository(connection),
         prices=PriceHistoryRepository(connection),
+        duplicates=DuplicateCandidateRepository(connection),
     )
     g.scrapyrealestate_repositories = repositories
     return repositories

@@ -6,6 +6,7 @@
   <title>{% block title %}ScrapyRealEstate{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='phase9.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='phase12.css') }}">
 </head>
 <body>
   <header class="site-header">
@@ -14,6 +15,7 @@
       <a href="{{ url_for('ui.dashboard') }}">Panel</a>
       <a href="{{ url_for('ui.search_list') }}">Búsquedas</a>
       <a href="{{ url_for('ui.listing_list') }}">Anuncios</a>
+      <a href="{{ url_for('ui.duplicate_candidates') }}">Duplicados</a>
       <a href="{{ url_for('ui.portal_health') }}">Estado portales</a>
       <a href="{{ url_for('ui.channel_list') }}">Notificaciones</a>
     </nav>

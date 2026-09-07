@@ -9,6 +9,7 @@ from scrapyrealestate.domain.values import PortalKey, RunStatus
 from scrapyrealestate.notifiers.base import DeliveryResult
 from scrapyrealestate.notifiers.registry import NotifierRegistry
 from scrapyrealestate.persistence.database import Database
+from scrapyrealestate.persistence.duplicates import DuplicateCandidateRepository
 from scrapyrealestate.persistence.migrations import MIGRATIONS, MigrationRunner
 from scrapyrealestate.persistence.notifications import (
     NotificationProvider,
@@ -95,6 +96,59 @@ def _search_form(**overrides):
     }
     values.update(overrides)
     return values
+
+
+def _duplicate_listing(connection, portal, external_id, canonical_url):
+    return connection.execute(
+        """
+        INSERT INTO listings (
+            portal_key, external_id, canonical_url, transaction_type,
+            property_type, title, price_euros, area_sqm, rooms, location,
+            neighbourhood, street, street_number, first_seen_at, last_seen_at
+        ) VALUES (?, ?, ?, 'buy', 'apartment', 'Piso luminoso con terraza',
+                  300000, 100, 3, 'Madrid', 'Chamberí', 'Calle Mayor', '10',
+                  '2026-09-07T09:00:00Z', '2026-09-07T09:00:00Z')
+        RETURNING id
+        """,
+        (portal, external_id, canonical_url),
+    ).fetchone()[0]
+
+
+def test_duplicate_candidate_view_is_read_only_and_shows_safe_evidence(web_app):
+    app, connection, _trigger, _schedule_changes = web_app
+    first = _duplicate_listing(
+        connection, "pisoscom", "dup-1", "https://www.pisos.com/dup-1"
+    )
+    second = _duplicate_listing(
+        connection,
+        "habitaclia",
+        "dup-2",
+        "https://user:password@example.com/unsafe",
+    )
+    DuplicateCandidateRepository(connection).upsert_pair(
+        first,
+        second,
+        score=0.91,
+        reasons=[
+            {"code": "exact_address", "matched": True, "contribution": 0.3},
+            {
+                "code": "price",
+                "matched": True,
+                "contribution": 0.15,
+                "detail": "1.0% relative difference",
+            },
+        ],
+    )
+
+    response = app.test_client().get("/duplicates")
+    body = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "91% de coincidencia" in body
+    assert "Dirección exacta" in body
+    assert "pisos.com/dup-1" in body
+    assert "user:password" not in body
+    assert "nunca se fusionan automáticamente" in body
 
 
 def test_dashboard_and_search_crud_use_prg_and_csrf(web_app):

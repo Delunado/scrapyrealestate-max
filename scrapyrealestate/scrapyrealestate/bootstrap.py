@@ -23,6 +23,7 @@ from scrapyrealestate.flask_server import (
     create_app,
 )
 from scrapyrealestate.persistence.database import Database
+from scrapyrealestate.persistence.duplicates import DuplicateCandidateRepository
 from scrapyrealestate.persistence.legacy_import import LegacyConfigImporter
 from scrapyrealestate.persistence.legacy_seen import LegacySeenRepository
 from scrapyrealestate.persistence.listings import ListingQueryRepository
@@ -200,6 +201,7 @@ def build_application(
                 notifications=notifications,
                 listings=ListingQueryRepository(connection),
                 prices=PriceHistoryRepository(connection),
+                duplicates=DuplicateCandidateRepository(connection),
             ),
             services=WebServices(
                 orchestration=orchestration,

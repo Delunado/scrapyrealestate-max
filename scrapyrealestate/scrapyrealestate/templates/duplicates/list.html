@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Posibles duplicados · ScrapyRealEstate{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <h1>Posibles duplicados</h1>
+    <p>{{ groups|length }} grupos pendientes de revisión. Son sugerencias: los anuncios nunca se fusionan automáticamente.</p>
+  </div>
+</div>
+{% if groups %}
+<div class="duplicate-list">
+  {% for group in groups %}
+  <article class="card duplicate-card">
+    <div class="listing-card-heading">
+      <div>
+        <span class="eyebrow">Confianza {{ 'alta' if group.confidence == 'high' else 'para revisar' }}</span>
+        <h2>{{ "%.0f"|format(group.score * 100) }}% de coincidencia</h2>
+      </div>
+      <span class="badge {{ 'badge-on' if group.confidence == 'high' else 'badge-warning' }}">Pendiente</span>
+    </div>
+    <div class="duplicate-members">
+      {% for member in group.active_members %}
+      <section>
+        <span class="eyebrow">{{ member.portal.value }}</span>
+        <h3><a href="{{ url_for('ui.listing_detail', listing_id=member.listing_id) }}">{{ member.title }}</a></h3>
+        <dl class="listing-facts">
+          <div><dt>Precio</dt><dd>{{ member.price_euros|euros }}</dd></div>
+          <div><dt>Superficie</dt><dd>{{ member.area_sqm|area }}</dd></div>
+          <div><dt>Habitaciones</dt><dd>{{ member.rooms if member.rooms is not none else '—' }}</dd></div>
+          <div><dt>Ubicación</dt><dd>{{ member.location or '—' }}</dd></div>
+          <div><dt>Barrio</dt><dd>{{ member.neighbourhood or '—' }}</dd></div>
+          <div><dt>Dirección</dt><dd>{{ [member.street, member.street_number]|select|join(' ') or '—' }}</dd></div>
+        </dl>
+        {% if member.external_url %}<a href="{{ member.external_url }}" target="_blank" rel="noopener noreferrer">Abrir fuente</a>{% endif %}
+      </section>
+      {% endfor %}
+    </div>
+    <details>
+      <summary>Ver evidencias</summary>
+      <ul class="evidence-list">
+        {% for reason in group.reasons if reason.matched is sameas true %}
+        <li><strong>{{ evidence_labels.get(reason.code, reason.code) }}</strong>{% if reason.detail %}: {{ reason.detail }}{% endif %}{% if reason.similarity is defined and reason.similarity is not none %} ({{ "%.0f"|format(reason.similarity * 100) }}%){% endif %}</li>
+        {% endfor %}
+      </ul>
+    </details>
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty">No hay candidatos pendientes. Las coincidencias aparecerán después de la ingesta cuando superen los criterios conservadores.</div>
+{% endif %}
+{% endblock %}

@@ -175,7 +175,7 @@ than code complexity.
 - [x] **Hard** — Implement candidate generation that narrows by location and structural attributes before scoring, with bounded query cost.
 - [x] **Hard** — Implement a conservative weighted score with precision-first thresholds and tests emphasizing false-positive prevention.
 - [x] **Medium** — Compute duplicate candidates asynchronously after ingestion without merging listing identity or blocking notifications.
-- [ ] **Medium** — Add a read-only web view showing candidate groups, evidence, source links, and confidence; do not auto-merge properties.
+- [x] **Medium** — Add a read-only web view showing candidate groups, evidence, source links, and confidence; do not auto-merge properties.
 - [ ] **Medium** — Add accept/reject review actions and use rejected pairs as durable exclusions from future suggestions.
 
 ## Phase 13 — Hardening and release readiness

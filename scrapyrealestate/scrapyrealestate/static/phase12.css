@@ -1,0 +1,6 @@
+.duplicate-list { display: grid; gap: 1rem; }
+.duplicate-card h2 { margin: .2rem 0; }
+.duplicate-card h3 { font-size: 1rem; margin: .2rem 0 .8rem; }
+.duplicate-members { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin: 1rem 0; }
+.duplicate-members section { border: 1px solid var(--border); border-radius: .6rem; padding: .9rem; }
+.evidence-list { margin-bottom: 0; }

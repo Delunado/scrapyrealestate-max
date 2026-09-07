@@ -487,6 +487,11 @@ background queue using its own SQLite connection. Queue saturation and all worke
 failures are isolated from portal/run status and notifier delivery. Shutdown drains
 accepted work before the bootstrap connection closes; candidates never merge or
 rewrite listing identity.
+The read-only `/duplicates` view renders pending candidate pairs, confidence,
+positive structured evidence, normalized listing facts, and credential-free HTTP(S)
+source links. It states explicitly that suggestions are not automatic merges; web
+formatting reads `DuplicateCandidateRepository` records and contains no matching or
+identity logic.
 
 New code should maintain these practical boundaries without creating needless
 micro-modules:
