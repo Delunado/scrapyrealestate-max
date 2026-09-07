@@ -152,13 +152,13 @@ than code complexity.
 
 ## Phase 10 — Docker persistence and self-hosted deployment
 
-- [ ] **Medium** — Update Compose to build/use the current application image with one documented persistent data bind mount or named volume and a configurable host web port.
-- [ ] **Easy** — Add restart policy, healthcheck wiring, init/reaping behavior, and sane stop-grace configuration without exposing extra ports.
-- [ ] **Medium** — Update the image for the new entrypoint, production WSGI server, healthcheck dependency, and least-privileged runtime user compatible with Chromium and the data mount.
-- [ ] **Medium** — Document environment variables, data ownership/permissions, secrets behavior, backup/restore, update, rollback, and migration procedures.
-- [ ] **Hard** — Add a deployment smoke test that creates configuration/history, recreates the container, and verifies SQLite data and web readiness survive.
-- [ ] **Medium** — Verify graceful shutdown during idle scheduling and an active crawl without orphaning Chromium/Scrapy processes.
-- [ ] **Easy** — Update README examples to use the persistent Compose workflow and remove claims/instructions for the retired first-run JSON UI.
+- [x] **Medium** — Update Compose to build/use the current application image with one documented persistent data bind mount or named volume and a configurable host web port.
+- [x] **Easy** — Add restart policy, healthcheck wiring, init/reaping behavior, and sane stop-grace configuration without exposing extra ports.
+- [x] **Medium** — Update the image for the new entrypoint, production WSGI server, healthcheck dependency, and least-privileged runtime user compatible with Chromium and the data mount.
+- [x] **Medium** — Document environment variables, data ownership/permissions, secrets behavior, backup/restore, update, rollback, and migration procedures.
+- [x] **Hard** — Add a deployment smoke test that creates configuration/history, recreates the container, and verifies SQLite data and web readiness survive.
+- [x] **Medium** — Verify graceful shutdown during idle scheduling and an active crawl without orphaning Chromium/Scrapy processes.
+- [x] **Easy** — Update README examples to use the persistent Compose workflow and remove claims/instructions for the retired first-run JSON UI.
 
 ## Phase 11 — Deliberate portal expansion
 
