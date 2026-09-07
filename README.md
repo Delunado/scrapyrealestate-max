@@ -78,21 +78,94 @@ directory, where `scrapy.cfg` lives:
 ./test_spider.sh fotocasa 'https://www.fotocasa.es/...'
 ```
 
-## Docker status
+## Self-hosted Docker deployment
 
-The current `docker-compose.yml` still uses the published Docker Hub image and does
-not mount persistent data. It therefore does **not** build or test uncommitted Phase
-8 changes from this checkout. For a one-off container test of this source tree:
+Docker Compose builds the application image from this checkout and uses the named
+volume `scrapyrealestate-data` for all persistent state. It runs the application as
+the unprivileged UID/GID `10001`, has a readiness healthcheck, restarts unless it is
+explicitly stopped, and gives graceful shutdown 30 seconds. `tini` reaps Scrapy and
+Chromium child processes for both Compose and direct image use.
 
 ```powershell
-docker build -t scrapyrealestate-local .
-docker run --rm --init -p 8080:8080 scrapyrealestate-local
+docker compose up --build -d
+docker compose ps
 ```
 
-Data in that one-off container is ephemeral. Persistent Compose volumes,
-healthchecks, configurable host ports, least-privileged image execution, and the
-complete backup/update procedure are intentionally tracked in Phase 10 of
-`TASKS.md`.
+Open <http://localhost:8080/> once `docker compose ps` reports the service as
+healthy. Compose exposes only the web port. To use a different host port or an
+independent persistent volume, set variables for the current PowerShell session
+before starting:
+
+```powershell
+$env:SCRAPYREALESTATE_WEB_PORT = "8181"
+$env:SCRAPYREALESTATE_DATA_VOLUME = "scrapyrealestate-production-data"
+docker compose up --build -d
+```
+
+The application always writes this deployment's data to
+`/var/lib/scrapyrealestate`. For a direct `docker run`, set
+`SCRAPYREALESTATE_DATA_DIR` only to an absolute, writable path. The Compose file
+sets it deliberately; do not override it with a path outside the mounted volume.
+
+### Data, secrets, and permissions
+
+The persistent volume contains `scrapyrealestate.sqlite3`, its SQLite WAL/SHM files,
+legacy import sources if supplied, and per-attempt output under `runs/`. It is the
+complete application state. A named volume is initialized with the image's
+UID/GID `10001`; if you replace it with a host bind mount, create the directory and
+grant write access to UID/GID `10001` before starting the service.
+
+Notification credentials are supplied through the UI and stored in the local SQLite
+database so durable delivery can survive a restart. They are masked in ordinary UI,
+status, and log output, but database access and backups can read them. Treat the
+volume and every backup as secret material; do not commit a legacy `config.json`, a
+database, or a backup archive. No provider token is baked into the image.
+
+### Backup, restore, update, and rollback
+
+Stop the service before a filesystem-level backup so no writes are in flight, then
+archive the named volume (including any SQLite WAL/SHM files). In PowerShell:
+
+```powershell
+docker compose stop
+docker run --rm -v scrapyrealestate-data:/data -v "${PWD}:/backup" alpine `
+  tar -C /data -czf /backup/scrapyrealestate-backup.tgz .
+docker compose start
+```
+
+To restore, stop the service, remove the current volume only after confirming that
+the archive is usable, create a new empty volume of the same name, and extract the
+archive into it:
+
+```powershell
+docker compose down
+docker volume rm scrapyrealestate-data
+docker volume create scrapyrealestate-data
+docker run --rm -v scrapyrealestate-data:/data -v "${PWD}:/backup" alpine `
+  sh -c "tar -C /data -xzf /backup/scrapyrealestate-backup.tgz && chown -R 10001:10001 /data"
+docker compose up --build -d
+```
+
+Use the value of `SCRAPYREALESTATE_DATA_VOLUME` in place of
+`scrapyrealestate-data` when you configured one. `docker compose down` preserves
+named volumes; `docker compose down -v` deletes them and must not be used for normal
+updates.
+
+For an update, take a backup, obtain the desired source revision, then rebuild and
+recreate the service:
+
+```powershell
+git pull
+docker compose build --pull
+docker compose up -d --force-recreate
+docker compose ps
+```
+
+SQLite migrations run automatically at startup and are forward-only. A code rollback
+is safe only if the earlier revision supports the existing database schema. If it
+does not, stop the service, restore the pre-update volume backup, check out the
+earlier revision, and run `docker compose up --build -d`. Never attempt to edit or
+reverse migration records in place.
 
 ## Runtime and data
 
@@ -114,12 +187,12 @@ Operational maintenance clears diagnostic text after 30 days and removes termina
 delivery-attempt rows after 90 days or above the newest 10,000 records. Pending and
 leased deliveries are retained, as are listing, match, event, and price histories.
 
-### Configuración y deduplicación
+### Configuraci??n y deduplicaci??n
 
-La configuración autoritativa se guarda en SQLite. La deduplicación utiliza la
-identidad externa o URL canónica dentro de cada portal, y conserva por separado las
-coincidencias de cada búsqueda. Los JSON heredados solo son fuentes de importación
-compatibles y no vuelven a ser el estado principal de la aplicación.
+La configuraci??n autoritativa se guarda en SQLite. La deduplicaci??n utiliza la
+identidad externa o URL can??nica dentro de cada portal, y conserva por separado las
+coincidencias de cada b??squeda. Los JSON heredados solo son fuentes de importaci??n
+compatibles y no vuelven a ser el estado principal de la aplicaci??n.
 
 Notification credentials are user supplied. There is no shared Telegram token.
 Ordinary channel reads and templates receive masked values; raw credentials are
@@ -144,3 +217,4 @@ test.
 
 Based on [mferark/scrapyrealestate](https://github.com/mferark/scrapyrealestate).
 Licensed under GPL-3.0.
+
