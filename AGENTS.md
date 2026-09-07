@@ -461,6 +461,12 @@ Every portal integration is one `PortalAdapter` (in practice, one
 
 ## Application boundaries to preserve
 
+Cross-site duplicate detection uses the accent-folded, precision-first comparison
+helpers in `domain/duplicate_matching.py`. Location and address tokens remain
+separate, known bedroom counts must agree exactly, and missing comparison values are
+represented as unknown rather than treated as matches. Keep fuzzy portal text
+handling at this domain boundary and do not merge listing identity based on it.
+
 New code should maintain these practical boundaries without creating needless
 micro-modules:
 

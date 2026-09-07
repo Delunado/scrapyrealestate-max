@@ -1,0 +1,28 @@
+{
+  "token_cases": [
+    {
+      "source": "Ático en C/ Alcalá, 42",
+      "tokens": ["atico", "en", "calle", "alcala", "42"]
+    },
+    {
+      "source": "Pza. de España",
+      "tokens": ["plaza", "de", "espana"]
+    },
+    {
+      "source": "Avda. del País Valencià",
+      "tokens": ["avenida", "del", "pais", "valencia"]
+    }
+  ],
+  "title_pairs": [
+    {
+      "first": "Piso luminoso en el centro con terraza",
+      "second": "Piso con terraza, luminoso, centro",
+      "similarity": 1.0
+    },
+    {
+      "first": "Chalet independiente con piscina",
+      "second": "Local comercial en el centro",
+      "similarity": 0.0
+    }
+  ]
+}

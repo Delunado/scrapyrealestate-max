@@ -14,6 +14,16 @@ from scrapyrealestate.domain.filtering import (
     evaluate_filters,
     evaluate_listing,
 )
+from scrapyrealestate.domain.duplicate_matching import (
+    areas_similar,
+    bedrooms_similar,
+    normalize_address_tokens,
+    normalize_location_tokens,
+    normalize_spanish_tokens,
+    prices_similar,
+    relative_difference,
+    title_similarity,
+)
 from scrapyrealestate.domain.listing import NormalizedListing, canonicalize_url
 from scrapyrealestate.domain.legacy_mapper import LegacyItemMappingError, map_legacy_item
 from scrapyrealestate.domain.normalization import (
@@ -50,14 +60,22 @@ __all__ = [
     "TransactionType",
     "TriState",
     "active_filter_keys",
+    "areas_similar",
+    "bedrooms_similar",
     "canonicalize_url",
     "evaluate_filters",
     "evaluate_listing",
     "map_legacy_item",
     "normalize_area_sqm",
+    "normalize_address_tokens",
     "normalize_count",
     "normalize_euro_price",
     "normalize_floor",
+    "normalize_location_tokens",
     "normalize_nullable_boolean",
+    "normalize_spanish_tokens",
+    "prices_similar",
+    "relative_difference",
     "report_capabilities",
+    "title_similarity",
 ]
