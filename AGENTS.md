@@ -476,6 +476,11 @@ bounded query: it first narrows by transaction, case-insensitive location, porta
 and broad structural windows using `listings_duplicate_narrowing_idx`, then requires
 identical accent-folded location tokens and at least two known structural attributes
 before a pair can reach scoring. Source and per-source pool limits are mandatory.
+`DuplicateCandidateScorer` uses fixed evidence weights; unknown data contributes
+nothing and known location/address/property/bedroom/area/price conflicts reject a
+pair. A score alone is insufficient: candidates also need either an exact street
+and number or exact neighbourhood plus a distinctive title and complete structural
+agreement. This precision-first gate is the contract to preserve when tuning.
 
 New code should maintain these practical boundaries without creating needless
 micro-modules:
