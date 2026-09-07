@@ -38,6 +38,7 @@ from scrapyrealestate.notifiers.registry import (
 from scrapyrealestate.portals import build_default_registry
 from scrapyrealestate.runtime import RuntimePaths, get_runtime_paths
 from scrapyrealestate.services.ingestion import IngestionService
+from scrapyrealestate.services.duplicate_worker import DuplicateCandidateWorker
 from scrapyrealestate.services.notification_delivery import DurableNotificationDispatcher
 from scrapyrealestate.services.retention import OperationalRetentionService
 from scrapyrealestate.services.manual_runs import ManualSearchRunLauncher
@@ -79,6 +80,7 @@ class ApplicationRuntime:
         connection: sqlite3.Connection,
         report: BootstrapReport,
         manual_runs: ManualSearchRunLauncher | None = None,
+        duplicate_candidates: DuplicateCandidateWorker | None = None,
     ) -> None:
         self.app = app
         self.scheduler = scheduler
@@ -89,6 +91,7 @@ class ApplicationRuntime:
         self._server: ApplicationServer | None = None
         self._shutdown_requested = threading.Event()
         self._manual_runs = manual_runs
+        self._duplicate_candidates = duplicate_candidates
 
     def run(self, server: ApplicationServer) -> None:
         """Run scheduler and web server with temporary process signal handlers."""
@@ -126,7 +129,15 @@ class ApplicationRuntime:
             or self._manual_runs.shutdown(timeout=grace_seconds + 5.0)
         )
         scheduler_stopped = self.scheduler.stop(timeout=grace_seconds + 5.0)
-        if not scheduler_stopped or not manual_runs_stopped:
+        duplicate_candidates_stopped = (
+            self._duplicate_candidates is None
+            or self._duplicate_candidates.shutdown(timeout=grace_seconds + 5.0)
+        )
+        if (
+            not scheduler_stopped
+            or not manual_runs_stopped
+            or not duplicate_candidates_stopped
+        ):
             logger.error("application workers did not stop within the shutdown grace period")
             return False
         self._connection.close()
@@ -147,6 +158,7 @@ def build_application(
     # This dedicated connection is used by the scheduler worker after bootstrap.
     # Web readiness opens a short independent connection instead of sharing it.
     connection = database.connect(check_same_thread=False)
+    duplicate_candidates: DuplicateCandidateWorker | None = None
     try:
         schema_version = MigrationRunner(MIGRATIONS).migrate(connection)
         report = _import_legacy_sources(connection, paths, schema_version)
@@ -162,6 +174,7 @@ def build_application(
         active_notifier_registry = notifier_registry or build_default_notifier_registry()
         retention = OperationalRetentionService(connection)
         retention.prune()
+        duplicate_candidates = DuplicateCandidateWorker(database)
         orchestration = SearchOrchestrationService(
             registry=registry,
             runner=runner,
@@ -172,6 +185,7 @@ def build_application(
                 notifications,
                 active_notifier_registry,
             ),
+            duplicate_candidates=duplicate_candidates,
             retention=retention.prune,
         )
         trigger = SearchTriggerService(searches, orchestration)
@@ -198,7 +212,10 @@ def build_application(
                 notifier_registry=active_notifier_registry,
             ),
         )
+        duplicate_candidates.start()
     except BaseException:
+        if duplicate_candidates is not None:
+            duplicate_candidates.shutdown(timeout=5.0)
         connection.close()
         raise
     return ApplicationRuntime(
@@ -208,6 +225,7 @@ def build_application(
         connection=connection,
         report=report,
         manual_runs=manual_runs,
+        duplicate_candidates=duplicate_candidates,
     )
 
 

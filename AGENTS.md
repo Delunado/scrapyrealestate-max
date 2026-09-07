@@ -481,6 +481,12 @@ nothing and known location/address/property/bedroom/area/price conflicts reject 
 pair. A score alone is insufficient: candidates also need either an exact street
 and number or exact neighbourhood plus a distinctive title and complete structural
 agreement. This precision-first gate is the contract to preserve when tuning.
+`services/duplicate_worker.py` receives committed listing IDs after notification
+delivery has been attempted and computes candidates on a bounded, lifecycle-managed
+background queue using its own SQLite connection. Queue saturation and all worker
+failures are isolated from portal/run status and notifier delivery. Shutdown drains
+accepted work before the bootstrap connection closes; candidates never merge or
+rewrite listing identity.
 
 New code should maintain these practical boundaries without creating needless
 micro-modules:

@@ -66,6 +66,11 @@ class _RecordingNotifier:
         return self._result
 
 
+class _FailingCandidateSubmission:
+    def submit(self, listing_ids):
+        raise RuntimeError("candidate worker unavailable")
+
+
 _PISOSCOM_ITEMS = (
     {
         "id": "1",
@@ -596,6 +601,7 @@ def test_orchestration_routes_persisted_events_once_through_durable_delivery(
             notification_delivery=DurableNotificationDispatcher(
                 notifications, notifier_registry
             ),
+            duplicate_candidates=_FailingCandidateSubmission(),
         )
 
         first = service.run_search(record, TriggerKind.MANUAL)
@@ -651,6 +657,7 @@ def test_notification_failure_is_durable_but_does_not_fail_search_run(tmp_path: 
             notification_delivery=DurableNotificationDispatcher(
                 notifications, notifier_registry
             ),
+            duplicate_candidates=_FailingCandidateSubmission(),
         )
 
         outcome = service.run_search(record, TriggerKind.MANUAL)

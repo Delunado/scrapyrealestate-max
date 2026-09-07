@@ -23,7 +23,7 @@ import random
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 from scrapyrealestate.domain.filtering import FilterOutcome, evaluate_listing
 from scrapyrealestate.domain.listing import NormalizedListing
@@ -60,6 +60,10 @@ from scrapyrealestate.services.notification_delivery import (
 # Attempt statuses this run's overall status treats as having succeeded.
 _ATTEMPT_OK = frozenset({RunStatus.SUCCESS, RunStatus.EMPTY})
 logger = logging.getLogger(__name__)
+
+
+class DuplicateCandidateSubmission(Protocol):
+    def submit(self, listing_ids: tuple[int, ...]) -> bool: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +105,7 @@ class SearchOrchestrationService:
         sleep: Callable[[float], None] = time.sleep,
         locks: SearchRunLock | None = None,
         notification_delivery: DurableNotificationDispatcher | None = None,
+        duplicate_candidates: DuplicateCandidateSubmission | None = None,
         retention: Callable[[], object] | None = None,
     ) -> None:
         if inter_portal_delay_seconds < 0:
@@ -126,6 +131,7 @@ class SearchOrchestrationService:
                 build_default_notifier_registry(),
             )
         )
+        self._duplicate_candidates = duplicate_candidates
         self._retention = retention
 
     def run_search(
@@ -225,6 +231,7 @@ class SearchOrchestrationService:
         notification_deliveries, notification_error = self._deliver_notifications(
             ingestion
         )
+        self._schedule_duplicate_candidates(ingestion)
         return self._finish_attempt(
             attempt,
             result,
@@ -235,6 +242,17 @@ class SearchOrchestrationService:
             notification_deliveries,
             notification_error,
         )
+
+    def _schedule_duplicate_candidates(self, ingestion: IngestionOutcome | None) -> None:
+        if ingestion is None or not ingestion.listing_ids or self._duplicate_candidates is None:
+            return
+        try:
+            accepted = self._duplicate_candidates.submit(ingestion.listing_ids)
+        except Exception:  # candidate work must never change delivery or run status
+            logger.warning("duplicate candidate submission failed")
+            return
+        if not accepted:
+            logger.warning("duplicate candidate submission was not accepted")
 
     def _deliver_notifications(
         self, ingestion: IngestionOutcome | None
