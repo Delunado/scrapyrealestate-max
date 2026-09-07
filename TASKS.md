@@ -187,4 +187,4 @@ than code complexity.
 - [x] **Externally unreliable** — Run and record opt-in live smoke tests for each enabled portal, classifying failures as application, parser, site change, or blocking.
 - [x] **Medium** — Run a container soak test across multiple independently scheduled fixture searches and verify no overlapping runs, database corruption, duplicate notifications, or orphan processes.
 - [x] **Easy** — Reconcile `AGENTS.md`, `TASKS.md`, README, configuration examples, portal status, and commands with the shipped architecture.
-- [ ] **Easy** — Publish a migration/release checklist with known breaking changes, limitations, supported upgrade path, and rollback instructions.
+- [x] **Easy** — Publish a migration/release checklist with known breaking changes, limitations, supported upgrade path, and rollback instructions.

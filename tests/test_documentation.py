@@ -19,6 +19,19 @@ def test_shipped_commands_and_current_architecture_are_documented():
     assert "Listing IDs are not globally unique today" not in agents
     assert "pre-migration" in readme.lower()
     assert "Yaencontre" in readme and "site_change" in readme
+    assert "docs/release-checklist.md" in readme
+
+    checklist = (ROOT / "docs" / "release-checklist.md").read_text(encoding="utf-8")
+    for required in (
+        "Supported upgrade paths",
+        "Breaking changes",
+        "Before upgrading",
+        "Upgrade procedure",
+        "Rollback procedure",
+        "Known release limitations",
+        "PRAGMA integrity_check",
+    ):
+        assert required in checklist
 
 
 def test_environment_example_contains_only_supported_non_secret_compose_values():

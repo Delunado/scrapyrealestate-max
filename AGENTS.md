@@ -226,6 +226,8 @@ infrastructure without a concrete requirement and an explicit update to
   healthcheck, and accepts `SCRAPYREALESTATE_WEB_PORT` and
   `SCRAPYREALESTATE_DATA_VOLUME` substitutions.
 - `README.md`: current user-facing behavior and deployment instructions.
+- `docs/release-checklist.md`: supported migration matrix, breaking changes,
+  preflight, upgrade, validation, and schema-aware rollback procedure.
 - `TASKS.md`: canonical ordered improvement plan. Read it before making changes.
 
 There is currently no package metadata or type checker.

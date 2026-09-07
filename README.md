@@ -138,6 +138,9 @@ database, or a backup archive. No provider token is baked into the image.
 
 ### Backup, restore, update, and rollback
 
+For a release-by-release procedure, supported upgrade matrix, breaking changes, and
+rollback validation, use [docs/release-checklist.md](docs/release-checklist.md).
+
 The application creates an integrity-checked SQLite snapshot before applying any
 pending migration to an existing database. It is stored once as
 `backups/pre-migration-v<old>-to-v<new>.sqlite3`; a fresh database and a database
