@@ -26,6 +26,9 @@ from scrapyrealestate.persistence.migrations.v012_notification_channel_tests imp
 from scrapyrealestate.persistence.migrations.v013_portal_health_index import (
     apply as apply_v013,
 )
+from scrapyrealestate.persistence.migrations.v014_duplicate_candidates import (
+    apply as apply_v014,
+)
 
 
 MIGRATIONS: tuple[Migration, ...] = (
@@ -42,6 +45,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(11, "notification_delivery_claims", apply_v011),
     Migration(12, "notification_channel_test_outcomes", apply_v012),
     Migration(13, "portal_attempt_health_index", apply_v013),
+    Migration(14, "duplicate_candidate_groups", apply_v014),
 )
 
 __all__ = ["MIGRATIONS", "Migration", "MigrationRunner"]

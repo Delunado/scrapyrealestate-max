@@ -466,6 +466,11 @@ helpers in `domain/duplicate_matching.py`. Location and address tokens remain
 separate, known bedroom counts must agree exactly, and missing comparison values are
 represented as unknown rather than treated as matches. Keep fuzzy portal text
 handling at this domain boundary and do not merge listing identity based on it.
+`persistence/duplicates.py` stores each cross-portal pair as a scored candidate
+group with structured reasons and an explicit pending/accepted/rejected review
+state. Candidate memberships are append-only history rows; listing foreign keys are
+restricted rather than cascaded so reviewing a candidate never rewrites or merges a
+listing.
 
 New code should maintain these practical boundaries without creating needless
 micro-modules:
