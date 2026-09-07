@@ -107,6 +107,8 @@ class DuplicateCandidateWorker:
     ) -> None:
         generated = generator.generate(batch)
         for pair in generated.pairs:
+            if repository.is_rejected_pair(pair.first.id, pair.second.id):
+                continue
             result = scorer.score(pair)
             if not result.eligible:
                 continue

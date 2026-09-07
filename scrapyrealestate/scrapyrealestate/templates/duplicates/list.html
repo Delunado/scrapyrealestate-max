@@ -4,9 +4,14 @@
 <div class="page-heading">
   <div>
     <h1>Posibles duplicados</h1>
-    <p>{{ groups|length }} grupos pendientes de revisión. Son sugerencias: los anuncios nunca se fusionan automáticamente.</p>
+    <p>{{ groups|length }} grupos en esta vista. Son sugerencias: los anuncios nunca se fusionan automáticamente.</p>
   </div>
 </div>
+<nav class="view-switcher" aria-label="Estado de revisión">
+  {% for state in states %}
+  <a href="{{ url_for('ui.duplicate_candidates', state=state.value) }}"{% if state == selected_state %} aria-current="page"{% endif %}>{{ {'pending': 'Pendientes', 'accepted': 'Aceptados', 'rejected': 'Rechazados'}[state.value] }}</a>
+  {% endfor %}
+</nav>
 {% if groups %}
 <div class="duplicate-list">
   {% for group in groups %}
@@ -16,7 +21,7 @@
         <span class="eyebrow">Confianza {{ 'alta' if group.confidence == 'high' else 'para revisar' }}</span>
         <h2>{{ "%.0f"|format(group.score * 100) }}% de coincidencia</h2>
       </div>
-      <span class="badge {{ 'badge-on' if group.confidence == 'high' else 'badge-warning' }}">Pendiente</span>
+      <span class="badge {{ 'badge-on' if group.review_state.value == 'accepted' else 'badge-warning' }}">{{ {'pending': 'Pendiente', 'accepted': 'Aceptado', 'rejected': 'Rechazado'}[group.review_state.value] }}</span>
     </div>
     <div class="duplicate-members">
       {% for member in group.active_members %}
@@ -43,10 +48,17 @@
         {% endfor %}
       </ul>
     </details>
+    {% if group.review_state.value == 'pending' %}
+    <form class="candidate-review-actions" method="post" action="{{ url_for('ui.review_duplicate_candidate', group_id=group.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" name="decision" value="accepted">Aceptar coincidencia</button>
+      <button class="button-danger" type="submit" name="decision" value="rejected">Rechazar y excluir</button>
+    </form>
+    {% endif %}
   </article>
   {% endfor %}
 </div>
 {% else %}
-<div class="empty">No hay candidatos pendientes. Las coincidencias aparecerán después de la ingesta cuando superen los criterios conservadores.</div>
+<div class="empty">No hay candidatos en este estado. Las coincidencias pendientes aparecerán después de la ingesta cuando superen los criterios conservadores.</div>
 {% endif %}
 {% endblock %}

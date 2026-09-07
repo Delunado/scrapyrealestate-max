@@ -25,7 +25,10 @@ from scrapyrealestate.domain.search import NormalizedSearch, SearchFilters
 from scrapyrealestate.domain.values import PortalKey, PropertyType, TransactionType
 from scrapyrealestate.notifiers.base import NotifierConfigurationError
 from scrapyrealestate.persistence.notifications import NotificationProvider
-from scrapyrealestate.persistence.duplicates import DuplicateReviewState
+from scrapyrealestate.persistence.duplicates import (
+    DuplicateCandidateAlreadyReviewedError,
+    DuplicateReviewState,
+)
 from scrapyrealestate.persistence.runs import TriggerKind
 from scrapyrealestate.persistence.searches import (
     SearchConflictError,
@@ -130,10 +133,16 @@ def listing_list():
 
 @ui.get("/duplicates")
 def duplicate_candidates():
-    groups = _duplicates().list(review_state=DuplicateReviewState.PENDING)
+    try:
+        selected_state = DuplicateReviewState(request.args.get("state", "pending"))
+    except ValueError:
+        abort(400)
+    groups = _duplicates().list(review_state=selected_state)
     return render_template(
         "duplicates/list.html",
         groups=groups,
+        states=tuple(DuplicateReviewState),
+        selected_state=selected_state,
         evidence_labels={
             "location": "Ubicación",
             "exact_address": "Dirección exacta",
@@ -145,6 +154,29 @@ def duplicate_candidates():
             "title": "Título",
         },
     )
+
+
+@ui.post("/duplicates/<int:group_id>/review")
+@csrf_protected
+def review_duplicate_candidate(group_id: int):
+    try:
+        decision = DuplicateReviewState(request.form.get("decision", ""))
+    except ValueError:
+        abort(400)
+    if decision is DuplicateReviewState.PENDING:
+        abort(400)
+    try:
+        _duplicates().set_review_state(group_id, decision)
+    except LookupError:
+        abort(404)
+    except DuplicateCandidateAlreadyReviewedError:
+        flash("Este candidato ya había sido revisado.", "warning")
+    else:
+        message = "Candidato aceptado." if decision is DuplicateReviewState.ACCEPTED else (
+            "Candidato rechazado y excluido de futuras sugerencias."
+        )
+        flash(message, "success")
+    return redirect(url_for("ui.duplicate_candidates"))
 
 
 @ui.get("/listings/new")

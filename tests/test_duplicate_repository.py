@@ -6,6 +6,7 @@ import pytest
 
 from scrapyrealestate.persistence.database import Database
 from scrapyrealestate.persistence.duplicates import (
+    DuplicateCandidateAlreadyReviewedError,
     DuplicateCandidateRepository,
     DuplicateReviewState,
 )
@@ -86,6 +87,8 @@ def test_review_state_and_rejection_are_durable(candidates):
     assert rejected.reviewed_at == "2026-09-07T10:00:00Z"
     assert repository.is_rejected_pair(second, first) is True
     assert repository.list(review_state=DuplicateReviewState.REJECTED) == (rejected,)
+    with pytest.raises(DuplicateCandidateAlreadyReviewedError):
+        repository.set_review_state(group.id, DuplicateReviewState.ACCEPTED)
 
 
 def test_candidate_pair_requires_existing_cross_site_listings(candidates):

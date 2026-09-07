@@ -151,6 +151,78 @@ def test_duplicate_candidate_view_is_read_only_and_shows_safe_evidence(web_app):
     assert "nunca se fusionan automáticamente" in body
 
 
+def test_duplicate_review_actions_require_csrf_and_preserve_listing_identity(web_app):
+    app, connection, _trigger, _schedule_changes = web_app
+    first = _duplicate_listing(
+        connection, "pisoscom", "review-1", "https://www.pisos.com/review-1"
+    )
+    second = _duplicate_listing(
+        connection,
+        "habitaclia",
+        "review-2",
+        "https://www.habitaclia.com/review-2",
+    )
+    repository = DuplicateCandidateRepository(connection)
+    group = repository.upsert_pair(
+        first,
+        second,
+        score=0.9,
+        reasons=[{"code": "exact_address", "matched": True}],
+    )
+    client = app.test_client()
+
+    rejected = client.post(
+        f"/duplicates/{group.id}/review", data={"decision": "accepted"}
+    )
+    assert rejected.status_code == 400
+
+    token = _csrf(client)
+    response = client.post(
+        f"/duplicates/{group.id}/review",
+        data={"csrf_token": token, "decision": "accepted"},
+    )
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/duplicates")
+    assert repository.get(group.id).review_state.value == "accepted"
+    assert connection.execute("SELECT count(*) FROM listings").fetchone()[0] == 2
+
+    history = client.get("/duplicates?state=accepted").get_data(as_text=True)
+    assert "Aceptado" in history
+    assert "Aceptar coincidencia" not in history
+
+
+def test_reject_action_excludes_candidate_and_invalid_decisions_fail(web_app):
+    app, connection, _trigger, _schedule_changes = web_app
+    first = _duplicate_listing(
+        connection, "fotocasa", "reject-1", "https://www.fotocasa.es/reject-1"
+    )
+    second = _duplicate_listing(
+        connection,
+        "yaencontre",
+        "reject-2",
+        "https://www.yaencontre.com/reject-2",
+    )
+    repository = DuplicateCandidateRepository(connection)
+    group = repository.upsert_pair(
+        first, second, score=0.9, reasons=[{"code": "match", "matched": True}]
+    )
+    client = app.test_client()
+    token = _csrf(client)
+
+    assert client.post(
+        f"/duplicates/{group.id}/review",
+        data={"csrf_token": token, "decision": "maybe"},
+    ).status_code == 400
+    response = client.post(
+        f"/duplicates/{group.id}/review",
+        data={"csrf_token": token, "decision": "rejected"},
+    )
+
+    assert response.status_code == 302
+    assert repository.is_rejected_pair(first, second) is True
+    assert "Rechazado" in client.get("/duplicates?state=rejected").get_data(as_text=True)
+
+
 def test_dashboard_and_search_crud_use_prg_and_csrf(web_app):
     app, connection, _trigger, schedule_changes = web_app
     client = app.test_client()

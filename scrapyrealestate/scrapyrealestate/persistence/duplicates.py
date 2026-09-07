@@ -20,6 +20,10 @@ class DuplicateReviewState(StrEnum):
     REJECTED = "rejected"
 
 
+class DuplicateCandidateAlreadyReviewedError(RuntimeError):
+    """A final accept/reject decision already exists for this candidate."""
+
+
 @dataclass(frozen=True, slots=True)
 class DuplicateCandidateMember:
     listing_id: int
@@ -295,18 +299,27 @@ class DuplicateCandidateRepository:
     ) -> DuplicateCandidateGroup:
         if not isinstance(state, DuplicateReviewState):
             raise TypeError("state must be a DuplicateReviewState")
+        if state is DuplicateReviewState.PENDING:
+            raise ValueError("review decisions must be accepted or rejected")
         timestamp = _utc_timestamp(reviewed_at)
-        review_timestamp = None if state is DuplicateReviewState.PENDING else timestamp
         cursor = self.connection.execute(
             """
             UPDATE duplicate_candidate_groups
             SET review_state = ?, reviewed_at = ?, updated_at = ?
-            WHERE id = ?
+            WHERE id = ? AND review_state = 'pending'
             """,
-            (state.value, review_timestamp, timestamp, group_id),
+            (state.value, timestamp, timestamp, group_id),
         )
         if cursor.rowcount != 1:
-            raise LookupError(f"duplicate candidate group {group_id} does not exist")
+            row = self.connection.execute(
+                "SELECT review_state FROM duplicate_candidate_groups WHERE id = ?",
+                (group_id,),
+            ).fetchone()
+            if row is None:
+                raise LookupError(f"duplicate candidate group {group_id} does not exist")
+            raise DuplicateCandidateAlreadyReviewedError(
+                f"duplicate candidate group {group_id} is already reviewed"
+            )
         return self.get(group_id)
 
     def is_rejected_pair(self, first_listing_id: int, second_listing_id: int) -> bool:

@@ -492,6 +492,10 @@ positive structured evidence, normalized listing facts, and credential-free HTTP
 source links. It states explicitly that suggestions are not automatic merges; web
 formatting reads `DuplicateCandidateRepository` records and contains no matching or
 identity logic.
+Duplicate review is a one-way, CSRF-protected POST/Redirect/Get decision. Accepted
+and rejected groups remain visible as history, neither state changes listing rows,
+and `DuplicateCandidateWorker` consults `is_rejected_pair` before scoring so a
+rejected pair is a durable exclusion from future suggestions.
 
 New code should maintain these practical boundaries without creating needless
 micro-modules:

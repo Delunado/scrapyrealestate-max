@@ -2,6 +2,10 @@ import sqlite3
 from pathlib import Path
 
 from scrapyrealestate.persistence.database import Database
+from scrapyrealestate.persistence.duplicates import (
+    DuplicateCandidateRepository,
+    DuplicateReviewState,
+)
 from scrapyrealestate.persistence.migrations import MIGRATIONS, MigrationRunner
 from scrapyrealestate.services.duplicate_worker import DuplicateCandidateWorker
 
@@ -74,3 +78,37 @@ def test_worker_does_not_share_bootstrap_sqlite_connection(tmp_path: Path):
 
     with database.connection() as connection:
         assert isinstance(connection, sqlite3.Connection)
+
+
+def test_worker_treats_rejected_pair_as_durable_exclusion(tmp_path: Path):
+    database = Database(tmp_path / "rejected.sqlite3")
+    with database.connection() as connection:
+        MigrationRunner(MIGRATIONS).migrate(connection)
+        first = _listing(connection, "pisoscom", "1", 300_000)
+        second = _listing(connection, "habitaclia", "2", 304_000)
+        repository = DuplicateCandidateRepository(connection)
+        group = repository.upsert_pair(
+            first,
+            second,
+            score=0.99,
+            reasons=[{"code": "reviewed-evidence"}],
+        )
+        repository.set_review_state(group.id, DuplicateReviewState.REJECTED)
+        connection.execute(
+            "UPDATE listings SET title = 'Vivienda amplia junto al metro' WHERE id = ?",
+            (first,),
+        )
+
+    worker = DuplicateCandidateWorker(database)
+    worker.start()
+    try:
+        assert worker.submit((second,)) is True
+        assert worker.wait_until_idle(timeout=2.0) is True
+    finally:
+        assert worker.shutdown(timeout=2.0) is True
+
+    with database.connection() as connection:
+        unchanged = DuplicateCandidateRepository(connection).get(group.id)
+        assert unchanged.score == 0.99
+        assert unchanged.reasons == ({"code": "reviewed-evidence"},)
+        assert unchanged.review_state is DuplicateReviewState.REJECTED

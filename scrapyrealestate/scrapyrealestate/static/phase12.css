@@ -4,3 +4,4 @@
 .duplicate-members { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin: 1rem 0; }
 .duplicate-members section { border: 1px solid var(--border); border-radius: .6rem; padding: .9rem; }
 .evidence-list { margin-bottom: 0; }
+.candidate-review-actions { display: flex; flex-wrap: wrap; gap: .65rem; margin-top: 1rem; }

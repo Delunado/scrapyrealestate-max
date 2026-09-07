@@ -44,9 +44,11 @@ The UI supports:
   URL validation;
 - Telegram, ntfy, and webhook channel management with masked secrets;
 - per-search channel assignments and event preferences;
-- safe test notifications with persisted, redacted outcomes.
+- safe test notifications with persisted, redacted outcomes;
 - paginated listing history, event/inactive views, listing and price details;
-- per-run diagnostics and bounded recent portal-health summaries.
+- per-run diagnostics and bounded recent portal-health summaries;
+- conservative cross-site duplicate suggestions with evidence and durable manual
+  accept/reject review; suggestions never merge listing identity automatically.
 
 Use a real reachable portal URL only when you intentionally run a crawl. The
 ordinary test suite is offline and does not contact portals.
